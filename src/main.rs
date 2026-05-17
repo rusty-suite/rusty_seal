@@ -13,6 +13,9 @@ use app::{AppState, RustySealApp};
 use audit::AuditLog;
 use vault::Vault;
 
+// Image embarquée à la compilation — chemin relatif depuis la racine du crate
+const ICON_PNG: &[u8] = include_bytes!("../assets/img/rusty-seal.png");
+
 fn main() -> eframe::Result<()> {
     let workdir = workdir::resolve_workdir();
     let lang_dir = workdir::lang_dir(&workdir);
@@ -35,7 +38,7 @@ fn main() -> eframe::Result<()> {
             .with_title("Rusty Seal")
             .with_inner_size([1000.0, 680.0])
             .with_min_inner_size([700.0, 500.0])
-            .with_icon(default_icon()),
+            .with_icon(load_icon()),
         ..Default::default()
     };
 
@@ -46,10 +49,21 @@ fn main() -> eframe::Result<()> {
     )
 }
 
-fn default_icon() -> egui::IconData {
+fn load_icon() -> egui::IconData {
+    use image::ImageReader;
+    use std::io::Cursor;
+
+    let img = ImageReader::new(Cursor::new(ICON_PNG))
+        .with_guessed_format()
+        .expect("format PNG valide")
+        .decode()
+        .expect("décodage PNG réussi")
+        .into_rgba8();
+
+    let (width, height) = img.dimensions();
     egui::IconData {
-        rgba: vec![0u8; 4 * 32 * 32],
-        width: 32,
-        height: 32,
+        rgba: img.into_raw(),
+        width,
+        height,
     }
 }
