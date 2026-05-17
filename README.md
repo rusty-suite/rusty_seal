@@ -176,4 +176,4 @@ rusty_seal/
 
 ## Licence
 
-MIT
+PolyForm Noncommercial
