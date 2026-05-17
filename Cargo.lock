@@ -3148,6 +3148,7 @@ dependencies = [
  "flate2",
  "hex",
  "hmac",
+ "image",
  "pem",
  "rand 0.8.6",
  "rcgen",
