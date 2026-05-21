@@ -6,7 +6,7 @@ use crate::audit::AuditLog;
 use crate::i18n::Lang;
 use crate::signing::VerifyResult;
 use crate::ui::theme;
-use crate::vault::types::{KeyAlgorithm, Profile, SigningMetadata};
+use crate::vault::types::{KeyAlgorithm, Profile, SigningMetadata, VaultRecord};
 use crate::vault::Vault;
 
 #[derive(Debug)]
@@ -51,6 +51,11 @@ pub struct AppState {
     pub vault: Vault,
     pub audit: AuditLog,
 
+    // Multi-vault registry
+    pub vault_registry: Vec<VaultRecord>,
+    pub vault_registry_path: PathBuf,
+    pub active_vault_idx: usize,
+
     // Vault UI
     pub pw_input: String,
     pub pw_confirm: String,
@@ -59,6 +64,13 @@ pub struct AppState {
     pub chpw_new: String,
     pub chpw_confirm: String,
     pub export_pw: String,
+
+    // Multi-vault UI
+    pub show_add_vault_form: bool,
+    pub new_vault_name: String,
+    pub delete_target_idx: Option<usize>,
+    pub delete_confirm_code: Option<String>,
+    pub delete_confirm_input: String,
 
     // Cert UI
     pub selected_cert: Option<String>,
@@ -93,11 +105,21 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(lang: Lang, vault: Vault, audit: AuditLog) -> Self {
+    pub fn new(
+        lang: Lang,
+        vault: Vault,
+        audit: AuditLog,
+        vault_registry: Vec<VaultRecord>,
+        vault_registry_path: PathBuf,
+        active_vault_idx: usize,
+    ) -> Self {
         Self {
             lang,
             vault,
             audit,
+            vault_registry,
+            vault_registry_path,
+            active_vault_idx,
             pw_input: String::new(),
             pw_confirm: String::new(),
             keyfile_path: None,
@@ -105,6 +127,11 @@ impl AppState {
             chpw_new: String::new(),
             chpw_confirm: String::new(),
             export_pw: String::new(),
+            show_add_vault_form: false,
+            new_vault_name: String::new(),
+            delete_target_idx: None,
+            delete_confirm_code: None,
+            delete_confirm_input: String::new(),
             selected_cert: None,
             new_cert: NewCertForm::default(),
             import_cert_alias: String::new(),
@@ -126,6 +153,19 @@ impl AppState {
             status_timer: 0.0,
         }
     }
+}
+
+pub fn save_vault_registry(path: &std::path::Path, registry: &[VaultRecord]) {
+    if let Ok(json) = serde_json::to_string_pretty(registry) {
+        std::fs::write(path, json).ok();
+    }
+}
+
+pub fn load_vault_registry(path: &std::path::Path) -> Vec<VaultRecord> {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
 
 pub struct RustySealApp {

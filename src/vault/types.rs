@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 use zeroize::Zeroize;
@@ -87,3 +88,9 @@ impl Default for VaultConfig {
 #[derive(Debug, Clone, Zeroize)]
 #[zeroize(drop)]
 pub struct UnlockedVaultKey(pub [u8; 32]);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VaultRecord {
+    pub name: String,
+    pub path: PathBuf,
+}

@@ -271,6 +271,11 @@ impl Vault {
         Ok(())
     }
 
+    pub fn delete_file(&self) -> Result<()> {
+        std::fs::remove_file(&self.path)?;
+        Ok(())
+    }
+
     pub fn change_password(&mut self, _old_pw: &str, new_pw: &str, keyfile: Option<&[u8]>) -> Result<()> {
         if self.is_locked() {
             return Err(AppError::Vault("Vault is locked".into()));
