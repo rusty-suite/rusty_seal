@@ -11,6 +11,7 @@ mod workdir;
 
 use app::{AppState, RustySealApp};
 use audit::AuditLog;
+use vault::types::VaultRecord;
 use vault::Vault;
 
 // Image embarquée à la compilation — chemin relatif depuis la racine du crate
@@ -25,13 +26,27 @@ fn main() -> eframe::Result<()> {
 
     let lang = i18n::load_lang(&lang_dir);
 
-    let vault_path = workdir.join("vault.rsvc");
-    let vault = Vault::new(vault_path);
+    let registry_path = workdir.join("vaults.json");
+    let mut registry = app::load_vault_registry(&registry_path);
+
+    // Bootstrap: if no registry exists yet, add the default vault
+    if registry.is_empty() {
+        let default_path = workdir.join("vault.rsvc");
+        registry.push(VaultRecord {
+            name: "Default".to_string(),
+            path: default_path,
+        });
+        app::save_vault_registry(&registry_path, &registry);
+    }
+
+    let active_idx = 0;
+    let active_path = registry[active_idx].path.clone();
+    let vault = Vault::new(active_path);
 
     let audit_path = workdir.join("audit.log");
     let audit = AuditLog::load(audit_path);
 
-    let state = AppState::new(lang, vault, audit);
+    let state = AppState::new(lang, vault, audit, registry, registry_path, active_idx);
 
     let native_opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
