@@ -28,6 +28,9 @@ hmac = "0.12"
 # Signing
 ring = "0.17"
 
+# RSA key generation (ring ne supporte pas la génération RSA)
+rsa = { version = "0.9", features = ["pkcs5"] }
+
 # Certificates
 rcgen = { version = "0.13", features = ["pem"] }
 time = { version = "0.3", features = ["std"] }

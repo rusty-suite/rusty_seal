@@ -5,6 +5,7 @@ use rcgen::{
     CertificateParams, DistinguishedName, DnType, KeyPair,
     PKCS_ED25519, PKCS_ECDSA_P256_SHA256, PKCS_ECDSA_P384_SHA384, PKCS_RSA_SHA256,
 };
+use rsa::pkcs8::{EncodePrivateKey, LineEnding};
 use sha2::{Sha256, Digest};
 use time::OffsetDateTime;
 
@@ -35,15 +36,24 @@ impl Default for CertBuilder {
 
 impl CertBuilder {
     pub fn build(self) -> Result<CertEntry> {
-        let alg = match self.algorithm {
-            KeyAlgorithm::Ed25519 => &PKCS_ED25519,
-            KeyAlgorithm::EcdsaP256 => &PKCS_ECDSA_P256_SHA256,
-            KeyAlgorithm::EcdsaP384 => &PKCS_ECDSA_P384_SHA384,
-            KeyAlgorithm::Rsa2048 | KeyAlgorithm::Rsa4096 => &PKCS_RSA_SHA256,
+        // ring (utilisé par rcgen) ne sait pas générer des clés RSA.
+        // Pour RSA on génère via le crate `rsa` puis on charge le PKCS#8 DER dans rcgen.
+        let key_pair = match self.algorithm {
+            KeyAlgorithm::Rsa2048 => generate_rsa_keypair(2048)?,
+            KeyAlgorithm::Rsa4096 => generate_rsa_keypair(4096)?,
+            KeyAlgorithm::Ed25519 => {
+                KeyPair::generate_for(&PKCS_ED25519)
+                    .map_err(|e| AppError::Certificate(format!("Key generation: {}", e)))?
+            }
+            KeyAlgorithm::EcdsaP256 => {
+                KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)
+                    .map_err(|e| AppError::Certificate(format!("Key generation: {}", e)))?
+            }
+            KeyAlgorithm::EcdsaP384 => {
+                KeyPair::generate_for(&PKCS_ECDSA_P384_SHA384)
+                    .map_err(|e| AppError::Certificate(format!("Key generation: {}", e)))?
+            }
         };
-
-        let key_pair = KeyPair::generate_for(alg)
-            .map_err(|e| AppError::Certificate(format!("Key generation: {}", e)))?;
 
         let mut params = CertificateParams::default();
         let mut dn = DistinguishedName::new();
@@ -86,6 +96,25 @@ impl CertBuilder {
 fn chrono_to_offset(dt: DateTime<Utc>) -> OffsetDateTime {
     OffsetDateTime::from_unix_timestamp(dt.timestamp())
         .unwrap_or(OffsetDateTime::now_utc())
+}
+
+/// Génère une paire de clés RSA via le crate `rsa` (ring ne supporte pas
+/// la génération RSA) et la charge dans rcgen via PKCS#8 DER.
+fn generate_rsa_keypair(bits: usize) -> Result<KeyPair> {
+    use rsa::RsaPrivateKey;
+
+    let mut rng = rand::thread_rng();
+    let private_key = RsaPrivateKey::new(&mut rng, bits)
+        .map_err(|e| AppError::Certificate(format!("RSA {}-bit generation: {}", bits, e)))?;
+
+    // Exporté en PKCS#8 PEM puis rechargé dans rcgen
+    // (ring — backend de rcgen — ne génère pas de clés RSA)
+    let pem_str = private_key
+        .to_pkcs8_pem(LineEnding::LF)
+        .map_err(|e| AppError::Certificate(format!("RSA PKCS#8 PEM: {}", e)))?;
+
+    KeyPair::from_pkcs8_pem_and_sign_algo(&pem_str, &PKCS_RSA_SHA256)
+        .map_err(|e| AppError::Certificate(format!("rcgen key import: {}", e)))
 }
 
 pub fn import_pem(alias: String, pem_text: &str, private_key_pem: Option<&str>) -> Result<CertEntry> {
