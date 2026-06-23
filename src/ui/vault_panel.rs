@@ -133,9 +133,10 @@ fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
 
     ui.horizontal(|ui| {
         if ui.button("📄 Create New Vault…").clicked() {
+            let suggested = name_to_filename(&state.new_vault_name);
             if let Some(p) = rfd::FileDialog::new()
                 .set_title("Choose location for new vault")
-                .set_file_name("vault.rsvc")
+                .set_file_name(&suggested)
                 .add_filter("Rusty Seal Vault", &["rsvc"])
                 .save_file()
             {
@@ -160,6 +161,15 @@ fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
             state.new_vault_name.clear();
         }
     });
+}
+
+fn name_to_filename(name: &str) -> String {
+    let slug = name.trim().to_lowercase().replace(' ', "_");
+    if slug.is_empty() {
+        "vault.rsvc".to_string()
+    } else {
+        format!("{}.rsvc", slug)
+    }
 }
 
 fn vault_display_name(input: &str, path: &std::path::Path) -> String {
@@ -273,7 +283,7 @@ fn perform_delete(
         let workdir = state.vault_registry_path.parent()
             .unwrap_or(std::path::Path::new("."))
             .to_path_buf();
-        let default_path = workdir.join("vault.rsvc");
+        let default_path = workdir.join("default.rsvc");
         state.vault_registry.push(crate::vault::types::VaultRecord {
             name: "Default".to_string(),
             path: default_path.clone(),
@@ -407,9 +417,13 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
             let path_str = state.vault.path.to_string_lossy().to_string();
             ui.label(RichText::new(&path_str).small().monospace());
             if ui.small_button("📁").clicked() {
+                let suggested = state.vault_registry
+                    .get(state.active_vault_idx)
+                    .map(|r| name_to_filename(&r.name))
+                    .unwrap_or_else(|| "vault.rsvc".to_string());
                 if let Some(p) = rfd::FileDialog::new()
                     .set_title(lang.get("vault.choose_location"))
-                    .set_file_name("vault.rsvc")
+                    .set_file_name(&suggested)
                     .save_file()
                 {
                     // Update path in both vault and registry
@@ -505,6 +519,33 @@ fn show_unlocked(ui: &mut Ui, state: &mut AppState) {
         ui.label(RichText::new(&rec.name).strong().size(14.0));
     }
     ui.label(RichText::new(state.vault.path.to_string_lossy().to_string()).small().weak());
+    ui.add_space(8.0);
+
+    let cert_count = state.vault.certificates().map(|c| c.len()).unwrap_or(0);
+    let profile_count = state.vault.profiles().map(|p| p.len()).unwrap_or(0);
+
+    ui.group(|ui| {
+        ui.label(RichText::new("Contenu du vault").strong());
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            ui.label(format!("📄 {} certificat(s)", cert_count));
+            if ui.small_button("Gérer →").clicked() {
+                state.pending_tab_switch = Some(crate::app::Tab::Certificates);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label(format!("📁 {} profil(s)", profile_count));
+            if ui.small_button("Gérer →").clicked() {
+                state.pending_tab_switch = Some(crate::app::Tab::Profiles);
+            }
+        });
+        if cert_count == 0 {
+            ui.add_space(4.0);
+            if ui.button("+ Ajouter un certificat").clicked() {
+                state.pending_tab_switch = Some(crate::app::Tab::Certificates);
+            }
+        }
+    });
     ui.add_space(8.0);
 
     let expiring = state.vault.expiring_certs(&state.vault.config.warn_expiry_days.clone());

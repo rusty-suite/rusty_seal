@@ -206,6 +206,28 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
 
     let can_sign = !state.sign_files.is_empty() && !state.sign_cert_alias.is_empty();
 
+    ui.add_space(4.0);
+    ui.separator();
+    ui.add_space(4.0);
+
+    // Output options (summary, configured in Settings)
+    let out_label = match &state.sign_output_dir {
+        None => lang.get("sign.output_same_dir").to_string(),
+        Some(d) => d.to_string_lossy().to_string(),
+    };
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(lang.get("sign.output_dir_label")).weak().small());
+        ui.label(RichText::new(&out_label).small().monospace());
+    });
+    let overwrite_label = if state.sign_overwrite_sig {
+        lang.get("sign.overwrite_sig")
+    } else {
+        lang.get("sign.skip_existing")
+    };
+    ui.label(RichText::new(overwrite_label).weak().small());
+
+    ui.add_space(8.0);
+
     if ui.add_enabled(can_sign, egui::Button::new(RichText::new(lang.get("sign.btn_sign")).strong())).clicked() {
         do_sign_all(state);
     }
@@ -215,11 +237,24 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
     }
 }
 
+fn sig_output_path(file_path: &std::path::Path, out_dir: &Option<std::path::PathBuf>) -> std::path::PathBuf {
+    match out_dir {
+        None => sig_path_for(file_path),
+        Some(dir) => {
+            let mut name = file_path.file_name().unwrap_or_default().to_os_string();
+            name.push(".sig");
+            dir.join(name)
+        }
+    }
+}
+
 fn do_sign_all(state: &mut AppState) {
     let lang = state.lang.clone();
     let alias = state.sign_cert_alias.clone();
     let meta = state.sign_meta.clone();
     let files = state.sign_files.clone();
+    let out_dir = state.sign_output_dir.clone();
+    let overwrite = state.sign_overwrite_sig;
 
     let cert = match state.vault.get_cert(&alias).cloned() {
         Ok(c) => c,
@@ -230,12 +265,19 @@ fn do_sign_all(state: &mut AppState) {
     };
 
     let mut ok_count = 0usize;
+    let mut skipped_count = 0usize;
     let mut err_msgs = vec![];
 
     for file_path in &files {
+        let sig_path = sig_output_path(file_path, &out_dir);
+
+        if sig_path.exists() && !overwrite {
+            skipped_count += 1;
+            continue;
+        }
+
         match sign_file(file_path, &cert, meta.clone()) {
             Ok(sig) => {
-                let sig_path = sig_path_for(file_path);
                 match std::fs::write(&sig_path, sig.to_json_pretty()) {
                     Ok(()) => {
                         ok_count += 1;
@@ -267,14 +309,17 @@ fn do_sign_all(state: &mut AppState) {
         }
     }
 
+    let mut msg = format!("{} {} {}",
+        lang.get("sign.signed_ok_prefix"), ok_count, lang.get("sign.signed_ok_suffix"));
+    if skipped_count > 0 {
+        msg.push_str(&format!(", {} {}", skipped_count, lang.get("sign.skipped")));
+    }
+
     if err_msgs.is_empty() {
-        state.status_msg = Some((
-            format!("{} {} {}", lang.get("sign.signed_ok_prefix"), ok_count, lang.get("sign.signed_ok_suffix")),
-            theme::GREEN,
-        ));
+        state.status_msg = Some((msg, theme::GREEN));
     } else {
         state.status_msg = Some((
-            format!("{}/{} signed. Errors: {}", ok_count, files.len(), err_msgs.join("; ")),
+            format!("{} — Errors: {}", msg, err_msgs.join("; ")),
             theme::YELLOW,
         ));
     }

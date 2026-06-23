@@ -1,3 +1,10 @@
+# EN_en.default.toml — Default English language file (universal fallback)
+# Naming convention: COUNTRY_lang.toml  /  COUNTRY_lang.default.toml
+# Files containing ".default." in the name are used as fallback if no matching locale is found.
+
+[app]
+lang_name = "English (EN)"
+
 [tab]
 vault = "Vault"
 certs = "Certificates"
@@ -5,6 +12,7 @@ profiles = "Profiles"
 sign = "Sign"
 verify = "Verify"
 audit = "Audit"
+settings = "Settings"
 
 [common]
 vault_locked = "Vault is locked — unlock first"
@@ -117,6 +125,30 @@ btn_sign = "Sign all"
 need_files_cert = "Select at least one file and a certificate"
 signed_ok_prefix = "Signed"
 signed_ok_suffix = "file(s) successfully"
+output_same_dir = "Same directory as source"
+output_custom_dir = "Custom output directory"
+output_dir_label = "Output directory"
+output_pick = "Browse..."
+overwrite_sig = "Overwrite .sig if exists"
+skip_existing = "Skip if .sig already exists"
+skipped = "skipped (already exist)"
+
+[settings]
+title = "Settings"
+language = "Interface language"
+lang_available = "Available languages"
+lang_apply = "Apply language"
+lang_applied = "Language applied"
+sign_output = "Signature output"
+sign_output_mode = "Output location"
+sign_overwrite = "If .sig already exists"
+context_menu = "Windows context menu (right-click)"
+context_menu_status = "Status"
+context_menu_registered = "Registered"
+context_menu_not_registered = "Not registered"
+context_menu_register = "Register 'Sign with Rusty Seal'"
+context_menu_unregister = "Unregister"
+context_menu_note = "Adds a right-click menu entry on any file in Windows Explorer."
 
 [verify]
 title = "Verify signature"

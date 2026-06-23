@@ -2,9 +2,9 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Zeroize)]
 pub enum KeyAlgorithm {
     Ed25519,
     EcdsaP256,
@@ -32,16 +32,19 @@ pub struct CertHistory {
     pub reason: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Zeroize, ZeroizeOnDrop)]
 pub struct CertEntry {
     pub alias: String,
     pub algorithm: KeyAlgorithm,
     pub certificate_pem: String,
     pub private_key_pkcs8_der_b64: String,
     pub fingerprint: String,
+    #[zeroize(skip)]
     pub created_at: DateTime<Utc>,
+    #[zeroize(skip)]
     pub expires_at: Option<DateTime<Utc>>,
     pub subject_cn: String,
+    #[zeroize(skip)]
     pub history: Vec<CertHistory>,
 }
 

@@ -44,6 +44,7 @@ pub enum Tab {
     Sign,
     Verify,
     Audit,
+    Settings,
 }
 
 pub struct AppState {
@@ -102,6 +103,16 @@ pub struct AppState {
     // Global status
     pub status_msg: Option<(String, Color32)>,
     pub status_timer: f32,
+
+    // Tab navigation requested from within a panel
+    pub pending_tab_switch: Option<Tab>,
+
+    // Settings
+    pub lang_dir: std::path::PathBuf,
+
+    // Sign output options
+    pub sign_output_dir: Option<std::path::PathBuf>,
+    pub sign_overwrite_sig: bool,
 }
 
 impl AppState {
@@ -112,6 +123,7 @@ impl AppState {
         vault_registry: Vec<VaultRecord>,
         vault_registry_path: PathBuf,
         active_vault_idx: usize,
+        lang_dir: PathBuf,
     ) -> Self {
         Self {
             lang,
@@ -151,6 +163,10 @@ impl AppState {
             audit_filter: String::new(),
             status_msg: None,
             status_timer: 0.0,
+            pending_tab_switch: None,
+            lang_dir,
+            sign_output_dir: None,
+            sign_overwrite_sig: true,
         }
     }
 }
@@ -174,66 +190,97 @@ pub struct RustySealApp {
 }
 
 impl RustySealApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, state: AppState) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, state: AppState, initial_tab: Tab) -> Self {
         theme::apply(&cc.egui_ctx);
         Self {
             state,
-            current_tab: Tab::Vault,
+            current_tab: initial_tab,
         }
     }
 }
 
 impl eframe::App for RustySealApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Réappliquer le thème sombre chaque frame — eframe/OS peut le réinitialiser
+        ctx.set_visuals(theme::dark_visuals());
+
         self.state.vault.tick_auto_lock();
+
+        if let Some(tab) = self.state.pending_tab_switch.take() {
+            self.current_tab = tab;
+        }
 
         let lang = self.state.lang.clone();
 
-        egui::TopBottomPanel::top("tab_bar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                ui.add_space(4.0);
+        // Barre d'onglets avec fond explicitement sombre
+        let topbar_frame = egui::Frame::none()
+            .fill(theme::BG_TOPBAR)
+            .inner_margin(egui::Margin::symmetric(4.0, 4.0));
 
-                let vault_locked = self.state.vault.is_locked();
-                let (dot, col) = theme::status_dot(vault_locked);
-                ui.label(RichText::new(dot).color(col).size(10.0));
-                ui.label(RichText::new("Rusty Seal").strong().size(14.0));
-
-                ui.separator();
-
-                let tabs = [
-                    (Tab::Vault, "🔒", lang.get("tab.vault")),
-                    (Tab::Certificates, "📄", lang.get("tab.certs")),
-                    (Tab::Profiles, "📁", lang.get("tab.profiles")),
-                    (Tab::Sign, "✓", lang.get("tab.sign")),
-                    (Tab::Verify, "🔍", lang.get("tab.verify")),
-                    (Tab::Audit, "📋", lang.get("tab.audit")),
-                ];
-
-                for (tab, icon, label) in &tabs {
-                    let is_active = &self.current_tab == tab;
-                    let text = RichText::new(format!("{} {}", icon, label))
-                        .color(if is_active { theme::GREEN_SOFT } else { egui::Color32::WHITE });
-
-                    if ui.selectable_label(is_active, text).clicked() {
-                        self.current_tab = match tab {
-                            Tab::Vault => Tab::Vault,
-                            Tab::Certificates => Tab::Certificates,
-                            Tab::Profiles => Tab::Profiles,
-                            Tab::Sign => Tab::Sign,
-                            Tab::Verify => Tab::Verify,
-                            Tab::Audit => Tab::Audit,
-                        };
-                    }
-                }
-            });
-        });
-
-        if let Some((msg, color)) = &self.state.status_msg.clone() {
-            egui::TopBottomPanel::bottom("status_bar").show(ctx, |ui| {
+        egui::TopBottomPanel::top("tab_bar")
+            .frame(topbar_frame)
+            .show(ctx, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(RichText::new(msg).color(*color).small());
+                    let vault_locked = self.state.vault.is_locked();
+                    let (dot, col) = theme::status_dot(vault_locked);
+                    ui.label(RichText::new(dot).color(col).size(10.0));
+                    ui.label(RichText::new("Rusty Seal").strong().size(14.0).color(egui::Color32::WHITE));
+
+                    ui.separator();
+
+                    let tabs = [
+                        (Tab::Vault,        "🔒", lang.get("tab.vault")),
+                        (Tab::Certificates, "📄", lang.get("tab.certs")),
+                        (Tab::Profiles,     "📁", lang.get("tab.profiles")),
+                        (Tab::Sign,         "✓",  lang.get("tab.sign")),
+                        (Tab::Verify,       "🔍", lang.get("tab.verify")),
+                        (Tab::Audit,        "📋", lang.get("tab.audit")),
+                    ];
+
+                    for (tab, icon, label) in &tabs {
+                        let is_active = &self.current_tab == tab;
+                        // Actif : vert vif  |  Inactif : bleu-gris clair (lisible sur fond sombre)
+                        let col = if is_active { theme::GREEN_SOFT } else { theme::TAB_INACTIVE };
+                        let text = RichText::new(format!("{} {}", icon, label)).color(col);
+
+                        if ui.selectable_label(is_active, text).clicked() {
+                            self.current_tab = match tab {
+                                Tab::Vault        => Tab::Vault,
+                                Tab::Certificates => Tab::Certificates,
+                                Tab::Profiles     => Tab::Profiles,
+                                Tab::Sign         => Tab::Sign,
+                                Tab::Verify       => Tab::Verify,
+                                Tab::Audit        => Tab::Audit,
+                                Tab::Settings     => Tab::Settings,
+                            };
+                        }
+                    }
+
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let is_settings = self.current_tab == Tab::Settings;
+                        let col = if is_settings { theme::GREEN_SOFT } else { theme::TAB_INACTIVE };
+                        if ui.selectable_label(is_settings, RichText::new("⚙").color(col))
+                            .on_hover_text(lang.get("tab.settings"))
+                            .clicked()
+                        {
+                            self.current_tab = Tab::Settings;
+                        }
+                    });
                 });
             });
+
+        // Barre de statut avec fond explicitement sombre
+        if let Some((msg, color)) = &self.state.status_msg.clone() {
+            let status_frame = egui::Frame::none()
+                .fill(theme::BG_STATUS)
+                .inner_margin(egui::Margin::symmetric(6.0, 2.0));
+
+            egui::TopBottomPanel::bottom("status_bar")
+                .frame(status_frame)
+                .show(ctx, |ui| {
+                    ui.label(RichText::new(msg).color(*color).small());
+                });
+
             self.state.status_timer += ctx.input(|i| i.unstable_dt);
             if self.state.status_timer > 5.0 {
                 self.state.status_msg = None;
@@ -241,15 +288,21 @@ impl eframe::App for RustySealApp {
             }
         }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        // Panneau central avec fond explicitement sombre
+        let main_frame = egui::Frame::none()
+            .fill(theme::BG_PANEL)
+            .inner_margin(egui::Margin::same(8.0));
+
+        egui::CentralPanel::default().frame(main_frame).show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 match self.current_tab {
-                    Tab::Vault => crate::ui::vault_panel::show(ui, &mut self.state),
+                    Tab::Vault        => crate::ui::vault_panel::show(ui, &mut self.state),
                     Tab::Certificates => crate::ui::cert_panel::show(ui, &mut self.state),
-                    Tab::Profiles => crate::ui::profile_panel::show(ui, &mut self.state),
-                    Tab::Sign => crate::ui::sign_panel::show(ui, &mut self.state),
-                    Tab::Verify => crate::ui::verify_panel::show(ui, &mut self.state),
-                    Tab::Audit => crate::ui::audit_panel::show(ui, &mut self.state),
+                    Tab::Profiles     => crate::ui::profile_panel::show(ui, &mut self.state),
+                    Tab::Sign         => crate::ui::sign_panel::show(ui, &mut self.state),
+                    Tab::Verify       => crate::ui::verify_panel::show(ui, &mut self.state),
+                    Tab::Audit        => crate::ui::audit_panel::show(ui, &mut self.state),
+                    Tab::Settings     => crate::ui::settings_panel::show(ui, &mut self.state),
                 }
             });
         });
