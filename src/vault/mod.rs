@@ -9,6 +9,7 @@ use flate2::read::GzDecoder;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 
+use zeroize::Zeroize;
 use crate::error::{AppError, Result};
 use crypto::*;
 use types::*;
@@ -60,6 +61,9 @@ impl Vault {
     }
 
     pub fn lock(&mut self) {
+        if let Some(k) = &self.key {
+            munlock_bytes(k.0.as_ptr(), KEY_LEN);
+        }
         self.key = None;
         self.data = None;
         self.last_activity = None;
@@ -75,14 +79,19 @@ impl Vault {
             profiles: Default::default(),
         };
 
-        let payload = serde_json::to_vec(&data)?;
+        let mut payload = serde_json::to_vec(&data)?;
         let compressed = gz_compress(&payload)?;
+        payload.zeroize();
         let (ct, nonce) = encrypt_aes_gcm(&compressed, &key)?;
 
         self.write_file(&salt, &nonce, &ct)?;
+        set_vault_permissions(&self.path);
 
         self.data = Some(data);
         self.key = Some(key);
+        if let Some(k) = &self.key {
+            mlock_bytes(k.0.as_ptr(), KEY_LEN);
+        }
         self.last_activity = Some(Instant::now());
         Ok(())
     }
@@ -90,12 +99,20 @@ impl Vault {
     pub fn unlock(&mut self, password: &str, keyfile: Option<&[u8]>) -> Result<()> {
         let (salt, nonce, ct) = self.read_file()?;
         let key = derive_key(password.as_bytes(), &salt, keyfile)?;
-        let compressed = decrypt_aes_gcm(&ct, &key, &nonce)?;
-        let payload = gz_decompress(&compressed)?;
-        let data: VaultData = serde_json::from_slice(&payload)?;
+        let data: VaultData = {
+            let mut compressed = decrypt_aes_gcm(&ct, &key, &nonce)?;
+            let mut payload = gz_decompress(&compressed)?;
+            let data = serde_json::from_slice(&payload)?;
+            compressed.zeroize();
+            payload.zeroize();
+            data
+        };
 
         self.data = Some(data);
         self.key = Some(key);
+        if let Some(k) = &self.key {
+            mlock_bytes(k.0.as_ptr(), KEY_LEN);
+        }
         self.last_activity = Some(Instant::now());
         Ok(())
     }
@@ -112,7 +129,6 @@ impl Vault {
         out.extend_from_slice(nonce);
         out.extend_from_slice(ct);
         std::fs::write(&self.path, &out)?;
-        set_vault_permissions(&self.path);
         Ok(())
     }
 
@@ -189,8 +205,9 @@ impl Vault {
         let key = self.key.as_ref().ok_or_else(|| AppError::Vault("Vault locked".into()))?;
         let data = self.data.as_ref().ok_or_else(|| AppError::Vault("No data".into()))?;
 
-        let payload = serde_json::to_vec(data)?;
+        let mut payload = serde_json::to_vec(data)?;
         let compressed = gz_compress(&payload)?;
+        payload.zeroize();
 
         let (orig_salt, _, _) = self.read_file().unwrap_or_else(|_| {
             let s = crypto::random_salt();
@@ -308,12 +325,54 @@ fn gz_decompress(data: &[u8]) -> Result<Vec<u8>> {
 }
 
 #[cfg(target_os = "windows")]
-fn set_vault_permissions(_path: &Path) {
-    // On Windows, ideally use DACL — skipped for portability
+fn set_vault_permissions(path: &Path) {
+    let domain = std::env::var("USERDOMAIN").unwrap_or_default();
+    let user = std::env::var("USERNAME").unwrap_or_default();
+    if user.is_empty() { return; }
+    let identity = if domain.is_empty() {
+        user
+    } else {
+        format!("{}\\{}", domain, user)
+    };
+    std::process::Command::new("icacls")
+        .args([
+            path.to_string_lossy().as_ref(),
+            "/inheritance:r",
+            "/grant:r",
+            &format!("{}:(F)", identity),
+        ])
+        .output()
+        .ok();
 }
 
 #[cfg(not(target_os = "windows"))]
 fn set_vault_permissions(path: &Path) {
     use std::os::unix::fs::PermissionsExt;
     let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+}
+
+fn mlock_bytes(ptr: *const u8, len: usize) {
+    #[cfg(unix)]
+    unsafe {
+        extern "C" { fn mlock(addr: *const core::ffi::c_void, len: usize) -> core::ffi::c_int; }
+        mlock(ptr as _, len);
+    }
+    #[cfg(windows)]
+    unsafe {
+        extern "system" { fn VirtualLock(lpAddress: *const core::ffi::c_void, dwSize: usize) -> i32; }
+        VirtualLock(ptr as _, len);
+    }
+}
+
+fn munlock_bytes(ptr: *const u8, len: usize) {
+    #[cfg(unix)]
+    unsafe {
+        extern "C" { fn munlock(addr: *const core::ffi::c_void, len: usize) -> core::ffi::c_int; }
+        munlock(ptr as _, len);
+    }
+    #[cfg(windows)]
+    unsafe {
+        extern "system" { fn VirtualUnlock(lpAddress: *const core::ffi::c_void, dwSize: usize) -> i32; }
+        VirtualUnlock(ptr as _, len);
+    }
 }

@@ -1,6 +1,25 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+const BUNDLED_LANGS: &[(&str, &str)] = &[
+    ("EN_en.default.toml", include_str!("../lang/EN_en.default.toml")),
+    ("FR_fr.toml",         include_str!("../lang/FR_fr.toml")),
+    ("DE_de.toml",         include_str!("../lang/DE_de.toml")),
+    ("CH_de.toml",         include_str!("../lang/CH_de.toml")),
+    ("CH_fr.toml",         include_str!("../lang/CH_fr.toml")),
+    ("IT_it.toml",         include_str!("../lang/IT_it.toml")),
+    ("CH_it.toml",         include_str!("../lang/CH_it.toml")),
+];
+
+fn ensure_bundled_languages(lang_dir: &Path) {
+    for &(name, content) in BUNDLED_LANGS {
+        let dest = lang_dir.join(name);
+        if !dest.exists() {
+            let _ = std::fs::write(dest, content);
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Lang {
     strings: HashMap<String, String>,
@@ -11,7 +30,7 @@ impl Lang {
         self.strings.get(key).map(|s| s.as_str()).unwrap_or(key)
     }
 
-    fn load_from_file(path: &Path) -> anyhow::Result<Self> {
+    pub fn load_from_file(path: &Path) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)?;
         let table: toml::Value = toml::from_str(&content)?;
         let mut strings = HashMap::new();
@@ -42,6 +61,8 @@ impl Lang {
 }
 
 pub fn load_lang(lang_dir: &PathBuf) -> Lang {
+    ensure_bundled_languages(lang_dir);
+
     let locale = detect_locale();
     let candidates = build_candidates(&locale, lang_dir);
 

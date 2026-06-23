@@ -31,7 +31,7 @@ fn main() -> eframe::Result<()> {
 
     // Bootstrap: if no registry exists yet, add the default vault
     if registry.is_empty() {
-        let default_path = workdir.join("vault.rsvc");
+        let default_path = workdir.join("default.rsvc");
         registry.push(VaultRecord {
             name: "Default".to_string(),
             path: default_path,
@@ -46,7 +46,29 @@ fn main() -> eframe::Result<()> {
     let audit_path = workdir.join("audit.log");
     let audit = AuditLog::load(audit_path);
 
-    let state = AppState::new(lang, vault, audit, registry, registry_path, active_idx);
+    // Parse --sign <file> [file...] command-line arguments
+    let cli_args: Vec<String> = std::env::args().skip(1).collect();
+    let mut sign_files_from_args: Vec<std::path::PathBuf> = vec![];
+    let mut i = 0;
+    while i < cli_args.len() {
+        if cli_args[i] == "--sign" {
+            i += 1;
+            while i < cli_args.len() && !cli_args[i].starts_with("--") {
+                sign_files_from_args.push(std::path::PathBuf::from(&cli_args[i]));
+                i += 1;
+            }
+        } else {
+            i += 1;
+        }
+    }
+
+    let mut state = AppState::new(lang, vault, audit, registry, registry_path, active_idx, lang_dir);
+    let initial_tab = if sign_files_from_args.is_empty() {
+        app::Tab::Vault
+    } else {
+        state.sign_files = sign_files_from_args;
+        app::Tab::Sign
+    };
 
     let native_opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -60,7 +82,7 @@ fn main() -> eframe::Result<()> {
     eframe::run_native(
         "Rusty Seal",
         native_opts,
-        Box::new(|cc| Ok(Box::new(RustySealApp::new(cc, state)))),
+        Box::new(|cc| Ok(Box::new(RustySealApp::new(cc, state, initial_tab)))),
     )
 }
 
