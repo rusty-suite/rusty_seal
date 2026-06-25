@@ -182,6 +182,8 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
                     ).clicked() {
                         state.sign_meta = p.default_metadata.clone();
                         state.sign_cert_alias = p.cert_alias.clone();
+                        let alt_aliases = p.cert_aliases.clone();
+                        crate::ui::quick_sign_panel::try_auto_switch_cert(state, &alt_aliases);
                     }
                 }
             });
@@ -206,7 +208,9 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
             })
             .show_ui(ui, |ui| {
                 for alias in &certs {
-                    ui.selectable_value(&mut state.sign_cert_alias, alias.clone(), alias.as_str());
+                    if ui.selectable_value(&mut state.sign_cert_alias, alias.clone(), alias.as_str()).clicked() {
+                        state.quick_sign_errors.clear();
+                    }
                 }
             });
     });
@@ -258,6 +262,9 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
 
     ui.add_space(8.0);
 
+    // Compatibility check — shown immediately when cert/files change
+    crate::ui::quick_sign_panel::show_compat_block(ui, state, &lang, false);
+
     let can_sign = !state.sign_files.is_empty() && !state.sign_cert_alias.is_empty();
 
     ui.add_space(4.0);
@@ -288,6 +295,20 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
 
     if !can_sign {
         ui.label(RichText::new(lang.get("sign.need_files_cert")).small().weak());
+    }
+
+    // Persistent inline error display
+    if !state.quick_sign_errors.is_empty() {
+        ui.add_space(6.0);
+        egui::Frame::none()
+            .fill(egui::Color32::from_rgb(60, 20, 20))
+            .inner_margin(egui::Margin::same(6.0))
+            .rounding(4.0)
+            .show(ui, |ui| {
+                for err in &state.quick_sign_errors.clone() {
+                    ui.label(RichText::new(format!("✗ {}", err)).small().color(theme::RED));
+                }
+            });
     }
 }
 
@@ -402,6 +423,7 @@ pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(st
 
 fn do_sign_all(state: &mut AppState) {
     let lang = state.lang.clone();
+    state.quick_sign_errors.clear();
     let (ok_count, skipped_count, err_msgs, _) = perform_sign(state);
 
     let mut msg = format!("{} {} {}",
@@ -413,9 +435,11 @@ fn do_sign_all(state: &mut AppState) {
     if err_msgs.is_empty() {
         state.status_msg = Some((msg, theme::GREEN));
     } else {
+        // Store errors for inline display AND show in status bar
+        state.quick_sign_errors = err_msgs.clone();
         state.status_msg = Some((
-            format!("{} — Errors: {}", msg, err_msgs.join("; ")),
-            theme::YELLOW,
+            format!("{} — {} erreur(s)", msg, err_msgs.len()),
+            theme::RED,
         ));
     }
 }

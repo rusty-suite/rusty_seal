@@ -2,7 +2,7 @@ use egui::{RichText, Ui};
 use crate::app::{self, AppState};
 use crate::audit::{AuditAction, AuditEntry};
 use crate::ui::theme;
-use crate::vault::types::VaultRecord;
+use crate::vault::types::{KeyAlgorithm, VaultRecord};
 use crate::vault::Vault;
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {
@@ -285,7 +285,7 @@ fn perform_delete(
             .to_path_buf();
         let default_path = workdir.join("default.rsvc");
         state.vault_registry.push(crate::vault::types::VaultRecord {
-            name: "Default".to_string(),
+            name: String::new(),
             path: default_path.clone(),
         });
         app::save_vault_registry(&state.vault_registry_path, &state.vault_registry);
@@ -439,7 +439,31 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
         ui.add_space(4.0);
 
         if !state.vault.exists() {
+            let idx = state.active_vault_idx;
+            let parent_dir = state.vault.path.parent()
+                .unwrap_or(std::path::Path::new("."))
+                .to_path_buf();
+            let mut vault_name = state.vault_registry.get(idx)
+                .map(|r| r.name.clone())
+                .unwrap_or_default();
+
             egui::Grid::new("create_grid").num_columns(2).show(ui, |ui| {
+                ui.label(lang.get("vault.name"));
+                if ui.add(
+                    egui::TextEdit::singleline(&mut vault_name)
+                        .desired_width(240.0)
+                        .hint_text("My Vault"),
+                ).changed() && !vault_name.is_empty() {
+                    let new_path = parent_dir.join(name_to_filename(&vault_name));
+                    if let Some(rec) = state.vault_registry.get_mut(idx) {
+                        rec.name = vault_name.clone();
+                        rec.path = new_path.clone();
+                    }
+                    state.vault.path = new_path;
+                    app::save_vault_registry(&state.vault_registry_path, &state.vault_registry);
+                }
+                ui.end_row();
+
                 ui.label(lang.get("vault.password"));
                 ui.add(egui::TextEdit::singleline(&mut state.pw_input)
                     .password(true)
@@ -454,8 +478,14 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
             });
             ui.add_space(4.0);
 
+            let vault_name_for_create = state.vault_registry
+                .get(state.active_vault_idx)
+                .map(|r| r.name.clone())
+                .unwrap_or_default();
             if ui.button(lang.get("vault.btn_create")).clicked() {
-                if state.pw_input != state.pw_confirm {
+                if vault_name_for_create.trim().is_empty() {
+                    state.status_msg = Some((lang.get("vault.name_required").to_string(), theme::RED));
+                } else if state.pw_input != state.pw_confirm {
                     state.status_msg = Some((lang.get("vault.pw_mismatch").to_string(), theme::RED));
                 } else if state.pw_input.is_empty() {
                     state.status_msg = Some((lang.get("vault.pw_empty").to_string(), theme::RED));
@@ -469,6 +499,16 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
                                 AuditAction::VaultCreate,
                                 "operator".into(), None, None, None, None, true,
                             )).ok();
+                            // Guide user to create a signing cert immediately
+                            state.pending_tab_switch = Some(crate::app::Tab::Certificates);
+                            state.new_cert = crate::app::NewCertForm {
+                                alias: "Code Signing".into(),
+                                algorithm: KeyAlgorithm::Rsa2048,
+                                common_name: "Code Signing".into(),
+                                org: String::new(),
+                                country: "US".into(),
+                                valid_days: 730,
+                            };
                         }
                         Err(e) => {
                             state.status_msg = Some((e.to_string(), theme::RED));

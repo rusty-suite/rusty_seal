@@ -29,11 +29,11 @@ fn main() -> eframe::Result<()> {
     let registry_path = workdir.join("vaults.json");
     let mut registry = app::load_vault_registry(&registry_path);
 
-    // Bootstrap: if no registry exists yet, add the default vault
+    // Bootstrap: if no registry exists yet, add a placeholder entry (user must name it)
     if registry.is_empty() {
         let default_path = workdir.join("default.rsvc");
         registry.push(VaultRecord {
-            name: "Default".to_string(),
+            name: String::new(),
             path: default_path,
         });
         app::save_vault_registry(&registry_path, &registry);

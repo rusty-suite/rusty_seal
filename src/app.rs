@@ -118,7 +118,14 @@ pub struct AppState {
     pub quick_sign_mode: bool,
     pub quick_sign_done: Option<(usize, usize)>, // (signed, skipped)
     pub quick_sign_signed_paths: Vec<(std::path::PathBuf, std::path::PathBuf)>,
+    pub quick_sign_errors: Vec<String>,
+    // Remembers the profile active when an incompatibility was detected,
+    // so we can offer to create a similar profile with the new compatible cert.
+    pub sign_profile_before_compat_change: Option<String>,
     pub close_requested: bool,
+    pub quick_sign_show_create_cert: bool,
+    // (cert_alias, profile_id): offer to add newly-created inline cert to active profile
+    pub quick_sign_offer_add_cert_to_profile: Option<(String, String)>,
 }
 
 impl AppState {
@@ -176,7 +183,11 @@ impl AppState {
             quick_sign_mode: false,
             quick_sign_done: None,
             quick_sign_signed_paths: vec![],
+            quick_sign_errors: vec![],
+            sign_profile_before_compat_change: None,
             close_requested: false,
+            quick_sign_show_create_cert: false,
+            quick_sign_offer_add_cert_to_profile: None,
         }
     }
 }
