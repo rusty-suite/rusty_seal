@@ -507,6 +507,7 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
                                 common_name: "Code Signing".into(),
                                 org: String::new(),
                                 country: "US".into(),
+                                email: String::new(),
                                 valid_days: 730,
                             };
                         }

@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use chrono::{DateTime, Duration, Utc};
 use pem::{parse as pem_parse, parse_many as pem_parse_many, encode as pem_encode, Pem};
 use rcgen::{
-    CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, KeyPair,
+    CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, Ia5String, KeyPair, SanType,
     PKCS_ED25519, PKCS_ECDSA_P256_SHA256, PKCS_ECDSA_P384_SHA384, PKCS_RSA_SHA256,
 };
 use rsa::pkcs8::{EncodePrivateKey, LineEnding};
@@ -18,6 +18,7 @@ pub struct CertBuilder {
     pub common_name: String,
     pub org: String,
     pub country: String,
+    pub email: String,
     pub valid_days: u32,
 }
 
@@ -29,6 +30,7 @@ impl Default for CertBuilder {
             common_name: String::new(),
             org: String::new(),
             country: "US".into(),
+            email: String::new(),
             valid_days: 365,
         }
     }
@@ -67,6 +69,11 @@ impl CertBuilder {
             dn.push(DnType::CountryName, self.country.clone());
         }
         params.distinguished_name = dn;
+        if !self.email.is_empty() {
+            let ia5_email = Ia5String::try_from(self.email.clone())
+                .map_err(|e| AppError::Certificate(format!("Invalid email: {}", e)))?;
+            params.subject_alt_names = vec![SanType::Rfc822Name(ia5_email)];
+        }
 
         let now = Utc::now();
         let exp = now + Duration::days(self.valid_days as i64);
@@ -90,6 +97,7 @@ impl CertBuilder {
             created_at: now,
             expires_at: Some(exp),
             subject_cn: self.common_name,
+            subject_email: self.email,
             history: vec![],
         })
     }
@@ -142,6 +150,7 @@ pub fn import_pem(alias: String, pem_text: &str, private_key_pem: Option<&str>) 
         created_at: Utc::now(),
         expires_at,
         subject_cn,
+        subject_email: String::new(),
         history: vec![],
     })
 }

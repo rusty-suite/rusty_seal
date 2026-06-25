@@ -333,7 +333,16 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
         // ── Compatibility check (shown immediately on selection) ─────────
         show_compat_block(ui, state, &lang, true);
 
-        ui.add_space(16.0);
+        ui.add_space(8.0);
+
+        // Copy mode toggle
+        ui.horizontal(|ui| {
+            ui.selectable_value(&mut state.sign_create_copy, false, lang.get("sign.output_mode_inplace"));
+            ui.selectable_value(&mut state.sign_create_copy, true,
+                format!("{} ({}…)", lang.get("sign.output_mode_copy"), lang.get("sign.signed_copy_prefix")));
+        });
+
+        ui.add_space(8.0);
 
         let can_sign =
             !state.sign_files.is_empty() && !state.sign_cert_alias.is_empty();
@@ -602,6 +611,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                                 common_name: "Code Signing".into(),
                                 org: String::new(),
                                 country: "US".into(),
+                                email: String::new(),
                                 valid_days: 365,
                             };
                             state.quick_sign_show_create_cert = true;
@@ -612,6 +622,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                                 common_name: "Code Signing".into(),
                                 org: String::new(),
                                 country: "US".into(),
+                                email: String::new(),
                                 valid_days: 365,
                             };
                             state.pending_tab_switch = Some(crate::app::Tab::Certificates);
@@ -779,6 +790,7 @@ fn show_inline_cert_create(ui: &mut Ui, state: &mut AppState) {
                 common_name: state.new_cert.common_name.clone(),
                 org: state.new_cert.org.clone(),
                 country: state.new_cert.country.clone(),
+                email: state.new_cert.email.clone(),
                 valid_days: state.new_cert.valid_days,
             };
             match builder.build() {

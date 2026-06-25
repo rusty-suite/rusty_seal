@@ -271,6 +271,14 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
     ui.separator();
     ui.add_space(4.0);
 
+    // Copy mode toggle
+    ui.horizontal(|ui| {
+        ui.selectable_value(&mut state.sign_create_copy, false, lang.get("sign.output_mode_inplace"));
+        ui.selectable_value(&mut state.sign_create_copy, true,
+            format!("{} ({}{}…)", lang.get("sign.output_mode_copy"),
+                lang.get("sign.signed_copy_prefix"), " "));
+    });
+
     // Output options (summary, configured in Settings)
     let out_label = match &state.sign_output_dir {
         None => lang.get("sign.output_same_dir").to_string(),
@@ -280,12 +288,14 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
         ui.label(RichText::new(lang.get("sign.output_dir_label")).weak().small());
         ui.label(RichText::new(&out_label).small().monospace());
     });
-    let overwrite_label = if state.sign_overwrite_sig {
-        lang.get("sign.overwrite_sig")
-    } else {
-        lang.get("sign.skip_existing")
-    };
-    ui.label(RichText::new(overwrite_label).weak().small());
+    if !state.sign_create_copy {
+        let overwrite_label = if state.sign_overwrite_sig {
+            lang.get("sign.overwrite_sig")
+        } else {
+            lang.get("sign.skip_existing")
+        };
+        ui.label(RichText::new(overwrite_label).weak().small());
+    }
 
     ui.add_space(8.0);
 
@@ -332,6 +342,8 @@ pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(st
     let files = state.sign_files.clone();
     let out_dir = state.sign_output_dir.clone();
     let overwrite = state.sign_overwrite_sig;
+    let create_copy = state.sign_create_copy;
+    let copy_prefix = state.lang.get("sign.signed_copy_prefix").to_string();
 
     let cert = match state.vault.get_cert(&alias).cloned() {
         Ok(c) => c,
@@ -344,17 +356,44 @@ pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(st
     let mut signed_pairs: Vec<(std::path::PathBuf, std::path::PathBuf)> = vec![];
 
     for file_path in &files {
+        // When copy mode is on, create a prefixed copy first and sign that
+        let target_path = if create_copy {
+            let fname = file_path.file_name().unwrap_or_default().to_string_lossy();
+            let copy_name = format!("{} {}", copy_prefix, fname);
+            let dest_dir = match &out_dir {
+                Some(d) => d.clone(),
+                None => file_path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf(),
+            };
+            let dest = dest_dir.join(&copy_name);
+            if let Err(e) = std::fs::copy(file_path, &dest) {
+                err_msgs.push(format!("{}: {}", file_path.display(), e));
+                continue;
+            }
+            dest
+        } else {
+            file_path.clone()
+        };
+
         // PowerShell scripts → Authenticode (signature embedded in file)
-        if crate::signing::authenticode::is_authenticode_target(file_path) {
-            match crate::signing::authenticode::sign_script(file_path, &cert) {
+        if crate::signing::authenticode::is_authenticode_target(&target_path) {
+            match crate::signing::authenticode::sign_script(&target_path, &cert) {
                 Ok(()) => {
                     ok_count += 1;
-                    signed_pairs.push((file_path.clone(), file_path.clone()));
+                    // Write a metadata sidecar alongside the signed PS1 (hash covers the signed file)
+                    let meta_sig_path = sig_path_for(&target_path);
+                    let file_hash = if let Ok(sig) = sign_file(&target_path, &cert, meta.clone()) {
+                        let hash = sig.file_hash.clone();
+                        std::fs::write(&meta_sig_path, sig.to_json_pretty()).ok();
+                        hash
+                    } else {
+                        String::new()
+                    };
+                    signed_pairs.push((target_path.clone(), target_path.clone()));
                     state.audit.append(crate::audit::AuditEntry::new(
                         crate::audit::AuditAction::Sign,
                         "operator".into(),
-                        None,
-                        Some(file_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        if file_hash.is_empty() { None } else { Some(file_hash) },
+                        Some(target_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
                         Some(alias.clone()),
                         None,
                         true,
@@ -362,11 +401,13 @@ pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(st
                 }
                 Err(e) => {
                     err_msgs.push(format!("{}: {}", file_path.display(), e));
+                    // Clean up the copy on failure
+                    if create_copy { std::fs::remove_file(&target_path).ok(); }
                     state.audit.append(crate::audit::AuditEntry::new(
                         crate::audit::AuditAction::Sign,
                         "operator".into(),
                         None,
-                        Some(file_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        Some(target_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
                         Some(alias.clone()),
                         Some(e.to_string()),
                         false,
@@ -377,19 +418,24 @@ pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(st
         }
 
         // All other files → JSON sidecar
-        let sig_path = sig_output_path(file_path, &out_dir);
+        // In copy mode the .sig always goes next to the copy; otherwise use out_dir logic
+        let sig_path = if create_copy {
+            sig_path_for(&target_path)
+        } else {
+            sig_output_path(file_path, &out_dir)
+        };
 
-        if sig_path.exists() && !overwrite {
+        if sig_path.exists() && !overwrite && !create_copy {
             skipped_count += 1;
             continue;
         }
 
-        match sign_file(file_path, &cert, meta.clone()) {
+        match sign_file(&target_path, &cert, meta.clone()) {
             Ok(sig) => {
                 match std::fs::write(&sig_path, sig.to_json_pretty()) {
                     Ok(()) => {
                         ok_count += 1;
-                        signed_pairs.push((file_path.clone(), sig_path));
+                        signed_pairs.push((target_path.clone(), sig_path));
                         state.audit.append(crate::audit::AuditEntry::new(
                             crate::audit::AuditAction::Sign,
                             "operator".into(),
@@ -400,11 +446,15 @@ pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(st
                             true,
                         )).ok();
                     }
-                    Err(e) => err_msgs.push(format!("{}: {}", file_path.display(), e)),
+                    Err(e) => {
+                        err_msgs.push(format!("{}: {}", file_path.display(), e));
+                        if create_copy { std::fs::remove_file(&target_path).ok(); }
+                    }
                 }
             }
             Err(e) => {
                 err_msgs.push(format!("{}: {}", file_path.display(), e));
+                if create_copy { std::fs::remove_file(&target_path).ok(); }
                 state.audit.append(crate::audit::AuditEntry::new(
                     crate::audit::AuditAction::Sign,
                     "operator".into(),

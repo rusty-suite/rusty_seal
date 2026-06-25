@@ -44,6 +44,8 @@ pub struct CertEntry {
     #[zeroize(skip)]
     pub expires_at: Option<DateTime<Utc>>,
     pub subject_cn: String,
+    #[serde(default)]
+    pub subject_email: String,
     #[zeroize(skip)]
     pub history: Vec<CertHistory>,
 }
