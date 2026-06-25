@@ -80,7 +80,11 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
          $secPw = ConvertTo-SecureString 'rseal' -AsPlainText -Force\n\
          $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet\n\
          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxBytes, $secPw, $flags)\n\
-         $result = Set-AuthenticodeSignature -FilePath '{file}' -Certificate $cert -HashAlgorithm SHA256\n\
+         try {{\n\
+             $result = Set-AuthenticodeSignature -FilePath '{file}' -Certificate $cert -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'\n\
+         }} catch {{\n\
+             $result = Set-AuthenticodeSignature -FilePath '{file}' -Certificate $cert -HashAlgorithm SHA256\n\
+         }}\n\
          Write-Output $result.Status",
         pfx = pfx_str,
         file = file_str

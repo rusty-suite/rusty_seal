@@ -16,6 +16,7 @@ pub struct NewCertForm {
     pub common_name: String,
     pub org: String,
     pub country: String,
+    pub email: String,
     pub valid_days: u32,
 }
 
@@ -31,6 +32,7 @@ impl Default for NewCertForm {
             common_name: String::new(),
             org: String::new(),
             country: "US".into(),
+            email: String::new(),
             valid_days: 365,
         }
     }
@@ -126,6 +128,8 @@ pub struct AppState {
     pub quick_sign_show_create_cert: bool,
     // (cert_alias, profile_id): offer to add newly-created inline cert to active profile
     pub quick_sign_offer_add_cert_to_profile: Option<(String, String)>,
+    // When true: copy the original file and sign the copy (prefix set by lang key)
+    pub sign_create_copy: bool,
 }
 
 impl AppState {
@@ -188,6 +192,7 @@ impl AppState {
             close_requested: false,
             quick_sign_show_create_cert: false,
             quick_sign_offer_add_cert_to_profile: None,
+            sign_create_copy: false,
         }
     }
 }

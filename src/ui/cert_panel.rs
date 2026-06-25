@@ -116,6 +116,12 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
         ui.label(&cert.subject_cn);
         ui.end_row();
 
+        if !cert.subject_email.is_empty() {
+            ui.label(RichText::new(lang.get("cert.email")).weak());
+            ui.label(&cert.subject_email);
+            ui.end_row();
+        }
+
         ui.label(RichText::new(lang.get("cert.algorithm")).weak());
         ui.label(cert.algorithm.to_string());
         ui.end_row();
@@ -251,6 +257,12 @@ fn show_create_form(ui: &mut Ui, state: &mut AppState) {
         ui.add(egui::TextEdit::singleline(&mut state.new_cert.country).desired_width(50.0));
         ui.end_row();
 
+        ui.label(lang.get("cert.email"));
+        ui.add(egui::TextEdit::singleline(&mut state.new_cert.email)
+            .desired_width(180.0)
+            .hint_text("user@example.com"));
+        ui.end_row();
+
         ui.label(lang.get("cert.valid_days"));
         ui.add(egui::DragValue::new(&mut state.new_cert.valid_days).range(1..=3650));
         ui.end_row();
@@ -284,6 +296,7 @@ fn show_create_form(ui: &mut Ui, state: &mut AppState) {
                 common_name: state.new_cert.common_name.clone(),
                 org: state.new_cert.org.clone(),
                 country: state.new_cert.country.clone(),
+                email: state.new_cert.email.clone(),
                 valid_days: state.new_cert.valid_days,
             };
             match builder.build() {
