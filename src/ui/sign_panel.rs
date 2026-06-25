@@ -97,6 +97,60 @@ fn show_file_selector(ui: &mut Ui, state: &mut AppState) {
 
     ui.add_space(4.0);
     ui.label(RichText::new(format!("{} {}", state.sign_files.len(), lang.get("sign.files_count"))).weak().small());
+
+    show_compat_warning(ui, &state.sign_files, &state.sign_cert_alias.clone(), state);
+}
+
+fn show_compat_warning(ui: &mut Ui, files: &[PathBuf], cert_alias: &str, state: &crate::app::AppState) {
+    let lang = &state.lang;
+
+    let pe_count = files.iter().filter(|p| is_pe_file(p)).count();
+    if pe_count > 0 {
+        ui.add_space(6.0);
+        ui.label(
+            RichText::new(lang.get("sign.compat_pe_warn"))
+                .small()
+                .color(crate::ui::theme::YELLOW),
+        );
+    }
+
+    let ps1_count = files.iter()
+        .filter(|p| crate::signing::authenticode::is_authenticode_target(p))
+        .count();
+
+    if ps1_count > 0 {
+        ui.add_space(4.0);
+        if !cert_alias.is_empty() {
+            let is_ed25519 = state.vault.get_cert(cert_alias)
+                .ok()
+                .map(|c| c.algorithm == crate::vault::types::KeyAlgorithm::Ed25519)
+                .unwrap_or(false);
+
+            if is_ed25519 {
+                ui.label(
+                    RichText::new(lang.get("sign.compat_ps1_ed25519_warn"))
+                        .small()
+                        .color(crate::ui::theme::RED),
+                );
+            } else {
+                ui.label(
+                    RichText::new(lang.get("sign.compat_ps1_info"))
+                        .small()
+                        .color(crate::ui::theme::GREEN_SOFT),
+                );
+            }
+        }
+    }
+}
+
+fn is_pe_file(path: &std::path::Path) -> bool {
+    matches!(
+        path.extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .as_deref(),
+        Some("exe" | "dll" | "sys" | "ocx" | "drv" | "efi" | "msi" | "msp" | "msu" | "scr")
+    )
 }
 
 fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
@@ -248,8 +302,10 @@ fn sig_output_path(file_path: &std::path::Path, out_dir: &Option<std::path::Path
     }
 }
 
-fn do_sign_all(state: &mut AppState) {
-    let lang = state.lang.clone();
+/// Runs the actual signing loop.
+/// Returns (signed, skipped, errors, signed_pairs) where signed_pairs is
+/// a list of (source_file, output_sig_file) for successfully signed files.
+pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(std::path::PathBuf, std::path::PathBuf)>) {
     let alias = state.sign_cert_alias.clone();
     let meta = state.sign_meta.clone();
     let files = state.sign_files.clone();
@@ -258,17 +314,48 @@ fn do_sign_all(state: &mut AppState) {
 
     let cert = match state.vault.get_cert(&alias).cloned() {
         Ok(c) => c,
-        Err(e) => {
-            state.status_msg = Some((e.to_string(), theme::RED));
-            return;
-        }
+        Err(e) => return (0, 0, vec![e.to_string()], vec![]),
     };
 
     let mut ok_count = 0usize;
     let mut skipped_count = 0usize;
     let mut err_msgs = vec![];
+    let mut signed_pairs: Vec<(std::path::PathBuf, std::path::PathBuf)> = vec![];
 
     for file_path in &files {
+        // PowerShell scripts → Authenticode (signature embedded in file)
+        if crate::signing::authenticode::is_authenticode_target(file_path) {
+            match crate::signing::authenticode::sign_script(file_path, &cert) {
+                Ok(()) => {
+                    ok_count += 1;
+                    signed_pairs.push((file_path.clone(), file_path.clone()));
+                    state.audit.append(crate::audit::AuditEntry::new(
+                        crate::audit::AuditAction::Sign,
+                        "operator".into(),
+                        None,
+                        Some(file_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        Some(alias.clone()),
+                        None,
+                        true,
+                    )).ok();
+                }
+                Err(e) => {
+                    err_msgs.push(format!("{}: {}", file_path.display(), e));
+                    state.audit.append(crate::audit::AuditEntry::new(
+                        crate::audit::AuditAction::Sign,
+                        "operator".into(),
+                        None,
+                        Some(file_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        Some(alias.clone()),
+                        Some(e.to_string()),
+                        false,
+                    )).ok();
+                }
+            }
+            continue;
+        }
+
+        // All other files → JSON sidecar
         let sig_path = sig_output_path(file_path, &out_dir);
 
         if sig_path.exists() && !overwrite {
@@ -281,6 +368,7 @@ fn do_sign_all(state: &mut AppState) {
                 match std::fs::write(&sig_path, sig.to_json_pretty()) {
                     Ok(()) => {
                         ok_count += 1;
+                        signed_pairs.push((file_path.clone(), sig_path));
                         state.audit.append(crate::audit::AuditEntry::new(
                             crate::audit::AuditAction::Sign,
                             "operator".into(),
@@ -308,6 +396,13 @@ fn do_sign_all(state: &mut AppState) {
             }
         }
     }
+
+    (ok_count, skipped_count, err_msgs, signed_pairs)
+}
+
+fn do_sign_all(state: &mut AppState) {
+    let lang = state.lang.clone();
+    let (ok_count, skipped_count, err_msgs, _) = perform_sign(state);
 
     let mut msg = format!("{} {} {}",
         lang.get("sign.signed_ok_prefix"), ok_count, lang.get("sign.signed_ok_suffix"));

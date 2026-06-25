@@ -12,11 +12,10 @@ const BUNDLED_LANGS: &[(&str, &str)] = &[
 ];
 
 fn ensure_bundled_languages(lang_dir: &Path) {
+    // Always overwrite — the binary is the source of truth for bundled translations.
+    // This ensures lang keys added in a new build are always available.
     for &(name, content) in BUNDLED_LANGS {
-        let dest = lang_dir.join(name);
-        if !dest.exists() {
-            let _ = std::fs::write(dest, content);
-        }
+        let _ = std::fs::write(lang_dir.join(name), content);
     }
 }
 

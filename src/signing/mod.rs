@@ -1,4 +1,5 @@
 pub mod format;
+pub mod authenticode;
 
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use pem::parse as pem_parse;
@@ -23,6 +24,13 @@ pub fn sign_file(
     cert: &CertEntry,
     metadata: SigningMetadata,
 ) -> Result<SignatureFile> {
+    if cert.certificate_pem.is_empty() {
+        return Err(AppError::Signing(format!(
+            "Certificate '{}' has no PEM data — please recreate or re-import it",
+            cert.alias
+        )));
+    }
+
     let file_hash = hash_file(file_path)?;
     let file_name = file_path
         .file_name()
@@ -174,33 +182,43 @@ fn do_sign(message: &[u8], cert: &CertEntry) -> Result<Vec<u8>> {
 fn do_verify(message: &[u8], sig: &[u8], cert_pem: &str, algorithm: &str) -> Result<()> {
     use x509_parser::prelude::*;
 
-    let pem_obj = pem_parse(cert_pem)
-        .map_err(|e| AppError::Signing(format!("Cert PEM: {}", e)))?;
-    let (_, cert) = X509Certificate::from_der(pem_obj.contents())
-        .map_err(|e| AppError::Signing(format!("Cert parse: {:?}", e)))?;
+    if cert_pem.is_empty() {
+        return Err(AppError::Signing(
+            "No certificate in signature file — file may have been signed with a corrupted cert".into(),
+        ));
+    }
 
-    let pub_key_der = cert.public_key().raw;
+    let pem_obj = pem_parse(cert_pem)
+        .map_err(|e| AppError::Signing(format!("Cert PEM parse error: {}", e)))?;
+    let (_, cert) = X509Certificate::from_der(pem_obj.contents())
+        .map_err(|e| AppError::Signing(format!("X.509 parse error: {:?}", e)))?;
+
+    let spki = cert.public_key();
+    // ring 0.17: Ed25519 and ECDSA expect the raw key bytes from the BitString,
+    // not the full SubjectPublicKeyInfo (SPKI).  RSA expects the full SPKI.
+    let key_bytes = spki.subject_public_key.data.as_ref();
+    let spki_bytes = spki.raw;
 
     match algorithm {
         "Ed25519" => {
-            let pk = UnparsedPublicKey::new(&signature::ED25519, pub_key_der);
+            let pk = UnparsedPublicKey::new(&signature::ED25519, key_bytes);
             pk.verify(message, sig)
                 .map_err(|_| AppError::Signing("Ed25519 verification failed".into()))
         }
         "ECDSA P-256" => {
-            let pk = UnparsedPublicKey::new(&signature::ECDSA_P256_SHA256_FIXED, pub_key_der);
+            let pk = UnparsedPublicKey::new(&signature::ECDSA_P256_SHA256_FIXED, key_bytes);
             pk.verify(message, sig)
                 .map_err(|_| AppError::Signing("ECDSA P-256 verification failed".into()))
         }
         "ECDSA P-384" => {
-            let pk = UnparsedPublicKey::new(&signature::ECDSA_P384_SHA384_FIXED, pub_key_der);
+            let pk = UnparsedPublicKey::new(&signature::ECDSA_P384_SHA384_FIXED, key_bytes);
             pk.verify(message, sig)
                 .map_err(|_| AppError::Signing("ECDSA P-384 verification failed".into()))
         }
         "RSA 2048" | "RSA 4096" => {
             let pk = UnparsedPublicKey::new(
                 &signature::RSA_PKCS1_2048_8192_SHA256,
-                pub_key_der,
+                spki_bytes,
             );
             pk.verify(message, sig)
                 .map_err(|_| AppError::Signing("RSA verification failed".into()))

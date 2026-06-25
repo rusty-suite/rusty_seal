@@ -15,10 +15,14 @@ audit = "Audit"
 settings = "Settings"
 
 [common]
-vault_locked = "Vault is locked — unlock first"
-confirm = "Confirm"
-yes = "Yes"
-no = "No"
+vault_locked     = "Vault is locked — unlock first"
+confirm          = "Confirm"
+yes              = "Yes"
+no               = "No"
+close            = "Close"
+quick_sign_title = "Quick Sign"
+open_app         = "Open application"
+open_folder      = "Open folder"
 
 [vault]
 title = "Vault"
@@ -131,7 +135,10 @@ output_dir_label = "Output directory"
 output_pick = "Browse..."
 overwrite_sig = "Overwrite .sig if exists"
 skip_existing = "Skip if .sig already exists"
-skipped = "skipped (already exist)"
+skipped        = "skipped (already exist)"
+compat_pe_warn          = "⚠ PE file(s) detected (.exe/.dll/.sys/…) — Rusty Seal creates a .sig sidecar, not Authenticode. These signatures will not appear in Windows file properties."
+compat_ps1_info         = "✓ PowerShell script(s) detected — will be signed with Authenticode (embedded in file, visible in Windows properties)."
+compat_ps1_ed25519_warn = "✗ Ed25519 is not supported by Windows Authenticode. Use RSA 2048/4096 or ECDSA P-256/P-384 to sign PS1 files with Authenticode."
 
 [settings]
 title = "Settings"

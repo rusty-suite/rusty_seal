@@ -67,6 +67,9 @@ anyhow = "1.0"
 # Icon / image decoding
 image = { version = "0.25", default-features = false, features = ["png"] }
 
+# PKCS#12 / PFX builder (Authenticode signing via PowerShell)
+p12 = "0.6"
+
 [profile.release]
 opt-level = 3
 lto = true

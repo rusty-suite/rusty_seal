@@ -2,7 +2,7 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use chrono::{DateTime, Duration, Utc};
 use pem::{parse as pem_parse, parse_many as pem_parse_many, encode as pem_encode, Pem};
 use rcgen::{
-    CertificateParams, DistinguishedName, DnType, KeyPair,
+    CertificateParams, DistinguishedName, DnType, ExtendedKeyUsagePurpose, KeyPair,
     PKCS_ED25519, PKCS_ECDSA_P256_SHA256, PKCS_ECDSA_P384_SHA384, PKCS_RSA_SHA256,
 };
 use rsa::pkcs8::{EncodePrivateKey, LineEnding};
@@ -56,6 +56,8 @@ impl CertBuilder {
         };
 
         let mut params = CertificateParams::default();
+        // Add Code Signing EKU so certs can be used for Windows Authenticode
+        params.extended_key_usages = vec![ExtendedKeyUsagePurpose::CodeSigning];
         let mut dn = DistinguishedName::new();
         dn.push(DnType::CommonName, self.common_name.clone());
         if !self.org.is_empty() {
