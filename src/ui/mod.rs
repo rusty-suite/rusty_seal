@@ -1,6 +1,7 @@
 pub mod audit_panel;
 pub mod cert_panel;
 pub mod profile_panel;
+pub mod quick_sign_panel;
 pub mod settings_panel;
 pub mod sign_panel;
 pub mod theme;

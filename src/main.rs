@@ -66,7 +66,9 @@ fn main() -> eframe::Result<()> {
     let initial_tab = if sign_files_from_args.is_empty() {
         app::Tab::Vault
     } else {
+        state.quick_sign_mode = true;
         state.sign_files = sign_files_from_args;
+        state.pw_input.clear();
         app::Tab::Sign
     };
 

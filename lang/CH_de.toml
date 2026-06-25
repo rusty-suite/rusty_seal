@@ -13,10 +13,14 @@ audit    = "Protokoll"
 settings = "Einstellungen"
 
 [common]
-vault_locked = "Tresor gesperrt — zuerst entsperren"
-confirm      = "Bestätigen"
-yes          = "Ja"
-no           = "Nein"
+vault_locked     = "Tresor gesperrt — zuerst entsperren"
+confirm          = "Bestätigen"
+yes              = "Ja"
+no               = "Nein"
+close            = "Schließen"
+quick_sign_title = "Schnellsignatur"
+open_app         = "Anwendung öffnen"
+open_folder      = "Ordner öffnen"
 
 [vault]
 title              = "Tresor"
@@ -130,6 +134,9 @@ output_pick      = "Durchsuchen..."
 overwrite_sig    = ".sig überschreiben, falls vorhanden"
 skip_existing    = "Überspringen, falls .sig vorhanden"
 skipped          = "übersprungen (bereits vorhanden)"
+compat_pe_warn          = "⚠ PE-Datei(en) erkannt (.exe/.dll/.sys/…) — Rusty Seal erstellt eine .sig-Sidecar-Datei, kein Authenticode. Diese Signaturen erscheinen nicht in den Windows-Dateieigenschaften."
+compat_ps1_info         = "✓ PowerShell-Skript(e) erkannt — wird mit Authenticode signiert (in Datei eingebettet, in Windows-Eigenschaften sichtbar)."
+compat_ps1_ed25519_warn = "✗ Ed25519 wird von Windows Authenticode nicht unterstützt. Verwenden Sie RSA 2048/4096 oder ECDSA P-256/P-384 zum Signieren von PS1-Dateien."
 
 [settings]
 title                       = "Einstellungen"

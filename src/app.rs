@@ -113,6 +113,12 @@ pub struct AppState {
     // Sign output options
     pub sign_output_dir: Option<std::path::PathBuf>,
     pub sign_overwrite_sig: bool,
+
+    // Quick Sign mode (launched via --sign CLI / context menu)
+    pub quick_sign_mode: bool,
+    pub quick_sign_done: Option<(usize, usize)>, // (signed, skipped)
+    pub quick_sign_signed_paths: Vec<(std::path::PathBuf, std::path::PathBuf)>,
+    pub close_requested: bool,
 }
 
 impl AppState {
@@ -167,6 +173,10 @@ impl AppState {
             lang_dir,
             sign_output_dir: None,
             sign_overwrite_sig: true,
+            quick_sign_mode: false,
+            quick_sign_done: None,
+            quick_sign_signed_paths: vec![],
+            close_requested: false,
         }
     }
 }
@@ -204,7 +214,39 @@ impl eframe::App for RustySealApp {
         // Réappliquer le thème sombre chaque frame — eframe/OS peut le réinitialiser
         ctx.set_visuals(theme::dark_visuals());
 
+        if self.state.close_requested {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+
         self.state.vault.tick_auto_lock();
+
+        // ── Mode Signature Rapide (lancé via --sign ou le menu contextuel) ──
+        if self.state.quick_sign_mode {
+            let status_frame = egui::Frame::none()
+                .fill(theme::BG_STATUS)
+                .inner_margin(egui::Margin::symmetric(6.0, 2.0));
+            if let Some((msg, color)) = &self.state.status_msg.clone() {
+                egui::TopBottomPanel::bottom("qs_status")
+                    .frame(status_frame)
+                    .show(ctx, |ui| {
+                        ui.label(egui::RichText::new(msg).color(*color).small());
+                    });
+                self.state.status_timer += ctx.input(|i| i.unstable_dt);
+                if self.state.status_timer > 5.0 {
+                    self.state.status_msg = None;
+                    self.state.status_timer = 0.0;
+                }
+            }
+            let main_frame = egui::Frame::none()
+                .fill(theme::BG_PANEL)
+                .inner_margin(egui::Margin::same(8.0));
+            egui::CentralPanel::default().frame(main_frame).show(ctx, |ui| {
+                crate::ui::quick_sign_panel::show(ui, &mut self.state);
+            });
+            ctx.request_repaint_after(std::time::Duration::from_secs(1));
+            return;
+        }
 
         if let Some(tab) = self.state.pending_tab_switch.take() {
             self.current_tab = tab;

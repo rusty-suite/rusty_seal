@@ -13,10 +13,14 @@ audit    = "Registro"
 settings = "Impostazioni"
 
 [common]
-vault_locked = "Cassaforte bloccata — sbloccare prima"
-confirm      = "Conferma"
-yes          = "Sì"
-no           = "No"
+vault_locked     = "Cassaforte bloccata — sbloccare prima"
+confirm          = "Conferma"
+yes              = "Sì"
+no               = "No"
+close            = "Chiudi"
+quick_sign_title = "Firma rapida"
+open_app         = "Apri l'applicazione"
+open_folder      = "Apri cartella"
 
 [vault]
 title              = "Cassaforte"
@@ -130,6 +134,9 @@ output_pick      = "Sfoglia..."
 overwrite_sig    = "Sovrascrivi .sig se esiste"
 skip_existing    = "Ignora se .sig già esiste"
 skipped          = "ignorati (già esistenti)"
+compat_pe_warn          = "⚠ File PE rilevati (.exe/.dll/.sys/…) — Rusty Seal crea un sidecar .sig, non Authenticode. Queste firme non appaiono nelle proprietà file di Windows."
+compat_ps1_info         = "✓ Script PowerShell rilevati — saranno firmati con Authenticode (incorporato nel file, visibile nelle proprietà Windows)."
+compat_ps1_ed25519_warn = "✗ Ed25519 non è supportato da Windows Authenticode. Usare RSA 2048/4096 o ECDSA P-256/P-384 per firmare i file PS1 con Authenticode."
 
 [settings]
 title                       = "Impostazioni"
