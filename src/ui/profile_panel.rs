@@ -57,6 +57,7 @@ fn show_profile_list(ui: &mut Ui, state: &mut AppState) {
             id: Uuid::new_v4().to_string(),
             name: String::new(),
             cert_alias: String::new(),
+            cert_aliases: vec![],
             default_metadata: SigningMetadata::default(),
         });
     }
@@ -112,6 +113,47 @@ fn show_profile_editor(ui: &mut Ui, state: &mut AppState) {
             });
         ui.end_row();
     });
+
+    ui.add_space(6.0);
+    ui.label(RichText::new(lang.get("profile.cert_aliases")).small().weak());
+    ui.label(RichText::new(lang.get("profile.cert_aliases_hint")).small().weak().italics());
+
+    let profile = state.edit_profile.as_mut().unwrap();
+    let cert_aliases_snapshot = profile.cert_aliases.clone();
+    let mut to_remove_alias: Option<usize> = None;
+    for (i, alias) in cert_aliases_snapshot.iter().enumerate() {
+        ui.horizontal(|ui| {
+            ui.label(RichText::new(alias).small().monospace());
+            if ui.small_button("✗").clicked() {
+                to_remove_alias = Some(i);
+            }
+        });
+    }
+    if let Some(i) = to_remove_alias {
+        profile.cert_aliases.remove(i);
+    }
+
+    // Combo to add a cert not already in the list
+    let available: Vec<String> = aliases.iter()
+        .filter(|a| **a != profile.cert_alias && !profile.cert_aliases.contains(*a))
+        .cloned()
+        .collect();
+    if !available.is_empty() {
+        let mut chosen = String::new();
+        egui::ComboBox::from_id_salt("profile_extra_cert")
+            .selected_text(lang.get("profile.cert_alias_add").to_string())
+            .width(200.0)
+            .show_ui(ui, |ui| {
+                for alias in &available {
+                    if ui.selectable_label(false, alias.as_str()).clicked() {
+                        chosen = alias.clone();
+                    }
+                }
+            });
+        if !chosen.is_empty() {
+            profile.cert_aliases.push(chosen);
+        }
+    }
 
     ui.add_space(8.0);
     ui.label(RichText::new(lang.get("profile.default_metadata")).strong());

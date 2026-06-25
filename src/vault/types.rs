@@ -63,6 +63,8 @@ pub struct Profile {
     pub id: String,
     pub name: String,
     pub cert_alias: String,
+    #[serde(default)]
+    pub cert_aliases: Vec<String>,
     pub default_metadata: SigningMetadata,
 }
 
