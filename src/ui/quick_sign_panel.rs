@@ -6,6 +6,44 @@ use crate::vault::types::SigningMetadata;
 pub fn show(ui: &mut Ui, state: &mut AppState) {
     let lang = state.lang.clone();
 
+    // Handle background sign result (QuickSign context only)
+    if matches!(state.bg_sign_result.as_ref(), Some((crate::app::BgSignContext::QuickSign, _))) {
+        let (_, result) = state.bg_sign_result.take().unwrap();
+        if result.ok_count > 0 || result.skipped > 0 {
+            state.quick_sign_done = Some((result.ok_count, result.skipped));
+            state.quick_sign_signed_paths = result.pairs;
+        }
+        if !result.errors.is_empty() {
+            state.quick_sign_errors = result.errors;
+        }
+    }
+
+    // Handle background cert gen result (QuickSignInline context only)
+    if matches!(state.bg_cert_result.as_ref(), Some((crate::app::BgCertContext::QuickSignInline, _))) {
+        let (_, result) = state.bg_cert_result.take().unwrap();
+        match result {
+            Ok(entry) => {
+                let alias = entry.alias.clone();
+                match state.vault.add_certificate(entry) {
+                    Ok(()) => {
+                        let profile_id = state.sign_selected_profile.clone();
+                        state.sign_cert_alias = alias.clone();
+                        state.sign_profile_before_compat_change = None;
+                        state.quick_sign_errors.clear();
+                        state.quick_sign_show_create_cert = false;
+                        state.new_cert = crate::app::NewCertForm::default();
+                        state.status_msg = Some((lang.get("cert.created_ok").to_string(), theme::GREEN));
+                        if let Some(pid) = profile_id {
+                            state.quick_sign_offer_add_cert_to_profile = Some((alias, pid));
+                        }
+                    }
+                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                }
+            }
+            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+        }
+    }
+
     ui.add_space(16.0);
     ui.vertical_centered(|ui| {
         ui.set_max_width(520.0);
@@ -347,47 +385,52 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
         let can_sign =
             !state.sign_files.is_empty() && !state.sign_cert_alias.is_empty();
 
-        ui.horizontal(|ui| {
-            if ui
-                .button(RichText::new(lang.get("common.no")).color(theme::GRAY))
-                .clicked()
-            {
-                state.close_requested = true;
-            }
+        let signing_in_progress = state.bg_sign.as_ref()
+            .map(|b| b.context == crate::app::BgSignContext::QuickSign)
+            .unwrap_or(false);
 
-            ui.add_space(20.0);
-
-            if ui
-                .add_enabled(
-                    can_sign,
-                    egui::Button::new(
-                        RichText::new(format!("✓  {}", lang.get("sign.btn_sign")))
-                            .strong()
-                            .color(theme::GREEN_SOFT),
-                    ),
-                )
-                .clicked()
-            {
-                state.quick_sign_errors.clear();
-                let (signed, skipped, errs, paths) =
-                    crate::ui::sign_panel::perform_sign(state);
-                if signed > 0 {
-                    state.quick_sign_done = Some((signed, skipped));
-                    state.quick_sign_signed_paths = paths;
+        if signing_in_progress {
+            let bg = state.bg_sign.as_ref().unwrap();
+            let current = bg.progress.load(std::sync::atomic::Ordering::Relaxed);
+            let total = bg.total;
+            let frac = if total > 0 { current as f32 / total as f32 } else { 0.0 };
+            ui.add(egui::ProgressBar::new(frac).animate(true).desired_width(300.0)
+                .text(format!("{} / {}", current, total)));
+        } else {
+            ui.horizontal(|ui| {
+                if ui
+                    .button(RichText::new(lang.get("common.no")).color(theme::GRAY))
+                    .clicked()
+                {
+                    state.close_requested = true;
                 }
-                if !errs.is_empty() {
-                    state.quick_sign_errors = errs;
-                }
-            }
 
-            if !can_sign {
-                ui.label(
-                    RichText::new(lang.get("sign.need_files_cert"))
-                        .small()
-                        .weak(),
-                );
-            }
-        });
+                ui.add_space(20.0);
+
+                if ui
+                    .add_enabled(
+                        can_sign,
+                        egui::Button::new(
+                            RichText::new(format!("✓  {}", lang.get("sign.btn_sign")))
+                                .strong()
+                                .color(theme::GREEN_SOFT),
+                        ),
+                    )
+                    .clicked()
+                {
+                    state.quick_sign_errors.clear();
+                    crate::ui::sign_panel::start_sign_bg(state, crate::app::BgSignContext::QuickSign);
+                }
+
+                if !can_sign {
+                    ui.label(
+                        RichText::new(lang.get("sign.need_files_cert"))
+                            .small()
+                            .weak(),
+                    );
+                }
+            });
+        }
 
         // Persistent error display — stays visible until the user changes selection
         if !state.quick_sign_errors.is_empty() {
@@ -719,6 +762,10 @@ fn show_inline_cert_create(ui: &mut Ui, state: &mut AppState) {
     use crate::vault::types::KeyAlgorithm;
     let lang = state.lang.clone();
 
+    let cert_gen_in_progress = state.bg_cert_gen.as_ref()
+        .map(|b| b.context == crate::app::BgCertContext::QuickSignInline)
+        .unwrap_or(false);
+
     ui.label(
         RichText::new(lang.get("sign.compat_inline_title"))
             .strong()
@@ -774,54 +821,71 @@ fn show_inline_cert_create(ui: &mut Ui, state: &mut AppState) {
         });
 
     ui.add_space(8.0);
-    ui.horizontal(|ui| {
-        let can_create = !state.new_cert.alias.is_empty() && !state.new_cert.common_name.is_empty();
-        if ui.add_enabled(
-            can_create,
-            egui::Button::new(
-                RichText::new(lang.get("sign.compat_inline_create"))
-                    .strong()
-                    .color(theme::GREEN_SOFT),
-            ),
-        ).clicked() {
-            let builder = CertBuilder {
-                alias: state.new_cert.alias.clone(),
-                algorithm: state.new_cert.algorithm.clone(),
-                common_name: state.new_cert.common_name.clone(),
-                org: state.new_cert.org.clone(),
-                country: state.new_cert.country.clone(),
-                email: state.new_cert.email.clone(),
-                valid_days: state.new_cert.valid_days,
-            };
-            match builder.build() {
-                Ok(entry) => {
-                    let alias = entry.alias.clone();
-                    match state.vault.add_certificate(entry) {
-                        Ok(()) => {
-                            let profile_id = state.sign_selected_profile.clone();
-                            state.sign_cert_alias = alias.clone();
-                            state.sign_profile_before_compat_change = None;
-                            state.quick_sign_errors.clear();
-                            state.quick_sign_show_create_cert = false;
-                            state.new_cert = crate::app::NewCertForm::default();
-                            state.status_msg = Some((lang.get("cert.created_ok").to_string(), theme::GREEN));
-                            // Offer to add to active profile if one is selected
-                            if let Some(pid) = profile_id {
-                                state.quick_sign_offer_add_cert_to_profile = Some((alias, pid));
+
+    if cert_gen_in_progress {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(RichText::new(state.bg_cert_gen.as_ref().map(|b| b.label.as_str()).unwrap_or("")).small().weak());
+        });
+    } else {
+        ui.horizontal(|ui| {
+            let can_create = !state.new_cert.alias.is_empty() && !state.new_cert.common_name.is_empty();
+            if ui.add_enabled(
+                can_create,
+                egui::Button::new(
+                    RichText::new(lang.get("sign.compat_inline_create"))
+                        .strong()
+                        .color(theme::GREEN_SOFT),
+                ),
+            ).clicked() {
+                let builder = CertBuilder {
+                    alias: state.new_cert.alias.clone(),
+                    algorithm: state.new_cert.algorithm.clone(),
+                    common_name: state.new_cert.common_name.clone(),
+                    org: state.new_cert.org.clone(),
+                    country: state.new_cert.country.clone(),
+                    email: state.new_cert.email.clone(),
+                    valid_days: state.new_cert.valid_days,
+                };
+                let is_rsa = matches!(state.new_cert.algorithm, KeyAlgorithm::Rsa2048 | KeyAlgorithm::Rsa4096);
+                if is_rsa {
+                    let (tx, rx) = std::sync::mpsc::channel();
+                    let label = format!("{} {}...", lang.get("cert.btn_create"), state.new_cert.algorithm);
+                    std::thread::spawn(move || { tx.send(builder.build()).ok(); });
+                    state.bg_cert_gen = Some(crate::app::BgCertGen {
+                        rx, label, context: crate::app::BgCertContext::QuickSignInline,
+                    });
+                } else {
+                    match builder.build() {
+                        Ok(entry) => {
+                            let alias = entry.alias.clone();
+                            match state.vault.add_certificate(entry) {
+                                Ok(()) => {
+                                    let profile_id = state.sign_selected_profile.clone();
+                                    state.sign_cert_alias = alias.clone();
+                                    state.sign_profile_before_compat_change = None;
+                                    state.quick_sign_errors.clear();
+                                    state.quick_sign_show_create_cert = false;
+                                    state.new_cert = crate::app::NewCertForm::default();
+                                    state.status_msg = Some((lang.get("cert.created_ok").to_string(), theme::GREEN));
+                                    if let Some(pid) = profile_id {
+                                        state.quick_sign_offer_add_cert_to_profile = Some((alias, pid));
+                                    }
+                                }
+                                Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
                             }
                         }
                         Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
                     }
                 }
-                Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
             }
-        }
-        ui.add_space(8.0);
-        if ui.button(lang.get("sign.compat_inline_cancel")).clicked() {
-            state.quick_sign_show_create_cert = false;
-            state.new_cert = crate::app::NewCertForm::default();
-        }
-    });
+            ui.add_space(8.0);
+            if ui.button(lang.get("sign.compat_inline_cancel")).clicked() {
+                state.quick_sign_show_create_cert = false;
+                state.new_cert = crate::app::NewCertForm::default();
+            }
+        });
+    }
 }
 
 fn create_profile_copy(state: &mut AppState, source_id: &str, new_cert_alias: &str) {

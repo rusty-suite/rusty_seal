@@ -61,6 +61,15 @@ pub fn sign_file(
     Ok(sig_file)
 }
 
+pub fn verify_authenticode(file_path: &Path) -> Result<VerifyResult> {
+    let (is_valid, status, subject, timestamp) = authenticode::verify_script(file_path)?;
+    if is_valid {
+        Ok(VerifyResult::AuthenticodeValid { subject, timestamp })
+    } else {
+        Ok(VerifyResult::AuthenticodeInvalid { status, subject })
+    }
+}
+
 pub fn verify_signature(file_path: &Path, sig_path: &Path) -> Result<VerifyResult> {
     let json = std::fs::read_to_string(sig_path)?;
     let sig_file = SignatureFile::from_json(&json)?;
@@ -112,11 +121,13 @@ pub enum VerifyResult {
     Valid(SignatureFile),
     FileMismatch { expected: String, actual: String },
     InvalidSignature(String),
+    AuthenticodeValid { subject: String, timestamp: String },
+    AuthenticodeInvalid { status: String, subject: String },
 }
 
 impl VerifyResult {
     pub fn is_valid(&self) -> bool {
-        matches!(self, Self::Valid(_))
+        matches!(self, Self::Valid(_) | Self::AuthenticodeValid { .. })
     }
 
     pub fn message(&self) -> String {
@@ -126,6 +137,8 @@ impl VerifyResult {
                 format!("File hash mismatch\nExpected: {}\nActual: {}", expected, actual)
             }
             Self::InvalidSignature(e) => format!("Invalid signature: {}", e),
+            Self::AuthenticodeValid { subject, .. } => format!("Authenticode valid — {}", subject),
+            Self::AuthenticodeInvalid { status, .. } => format!("Authenticode invalid: {}", status),
         }
     }
 }
@@ -238,6 +251,154 @@ pub fn write_sig_file(file_path: &Path, sig: &format::SignatureFile) -> Result<(
     };
     std::fs::write(&sig_path, sig.to_json_pretty())?;
     Ok(())
+}
+
+/// Result produced by `run_sign_job` — returned across thread boundary.
+pub struct SignJobResult {
+    pub ok_count: usize,
+    pub skipped: usize,
+    pub errors: Vec<String>,
+    pub pairs: Vec<(std::path::PathBuf, std::path::PathBuf)>,
+    pub audit_entries: Vec<crate::audit::AuditEntry>,
+}
+
+/// Pure signing loop — all inputs passed by value/reference, no AppState access.
+/// Designed to run inside a background thread.  `progress` is incremented once per file.
+pub fn run_sign_job(
+    files: &[std::path::PathBuf],
+    cert: &CertEntry,
+    meta: SigningMetadata,
+    out_dir: &Option<std::path::PathBuf>,
+    overwrite: bool,
+    create_copy: bool,
+    copy_prefix: &str,
+    progress: &std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) -> SignJobResult {
+    use std::sync::atomic::Ordering;
+    let alias = cert.alias.clone();
+    let mut ok_count = 0usize;
+    let mut skipped = 0usize;
+    let mut errors: Vec<String> = vec![];
+    let mut pairs: Vec<(std::path::PathBuf, std::path::PathBuf)> = vec![];
+    let mut audit_entries: Vec<crate::audit::AuditEntry> = vec![];
+
+    for file_path in files {
+        let target_path = if create_copy {
+            let fname = file_path.file_name().unwrap_or_default().to_string_lossy();
+            let copy_name = format!("{} {}", copy_prefix, fname);
+            let dest_dir = match out_dir {
+                Some(d) => d.clone(),
+                None => file_path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf(),
+            };
+            let dest = dest_dir.join(&copy_name);
+            if let Err(e) = std::fs::copy(file_path, &dest) {
+                errors.push(format!("{}: {}", file_path.display(), e));
+                progress.fetch_add(1, Ordering::Relaxed);
+                continue;
+            }
+            dest
+        } else {
+            file_path.clone()
+        };
+
+        if authenticode::is_authenticode_target(&target_path) {
+            match authenticode::sign_script(&target_path, cert) {
+                Ok(()) => {
+                    ok_count += 1;
+                    pairs.push((target_path.clone(), target_path.clone()));
+                    audit_entries.push(crate::audit::AuditEntry::new(
+                        crate::audit::AuditAction::Sign,
+                        "operator".into(),
+                        None,
+                        Some(target_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        Some(alias.clone()),
+                        None,
+                        true,
+                    ));
+                }
+                Err(e) => {
+                    errors.push(format!("{}: {}", file_path.display(), e));
+                    if create_copy { std::fs::remove_file(&target_path).ok(); }
+                    audit_entries.push(crate::audit::AuditEntry::new(
+                        crate::audit::AuditAction::Sign,
+                        "operator".into(),
+                        None,
+                        Some(target_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        Some(alias.clone()),
+                        Some(e.to_string()),
+                        false,
+                    ));
+                }
+            }
+            progress.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        let sig_path = if create_copy {
+            sig_path_for(&target_path)
+        } else {
+            match out_dir {
+                None => sig_path_for(file_path),
+                Some(dir) => {
+                    let mut name = file_path.file_name().unwrap_or_default().to_os_string();
+                    name.push(".sig");
+                    dir.join(name)
+                }
+            }
+        };
+
+        if sig_path.exists() && !overwrite && !create_copy {
+            skipped += 1;
+            progress.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
+
+        match sign_file(&target_path, cert, meta.clone()) {
+            Ok(sig) => {
+                let json = sig.to_json_pretty();
+                if json.is_empty() {
+                    errors.push(format!("{}: signature serialization failed", file_path.display()));
+                    if create_copy { std::fs::remove_file(&target_path).ok(); }
+                } else {
+                    match std::fs::write(&sig_path, &json) {
+                        Ok(()) => {
+                            ok_count += 1;
+                            pairs.push((target_path.clone(), sig_path));
+                            audit_entries.push(crate::audit::AuditEntry::new(
+                                crate::audit::AuditAction::Sign,
+                                "operator".into(),
+                                Some(sig.file_hash.clone()),
+                                Some(sig.file_name.clone()),
+                                Some(alias.clone()),
+                                None,
+                                true,
+                            ));
+                        }
+                        Err(e) => {
+                            errors.push(format!("{}: {}", file_path.display(), e));
+                            if create_copy { std::fs::remove_file(&target_path).ok(); }
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                errors.push(format!("{}: {}", file_path.display(), e));
+                if create_copy { std::fs::remove_file(&target_path).ok(); }
+                audit_entries.push(crate::audit::AuditEntry::new(
+                    crate::audit::AuditAction::Sign,
+                    "operator".into(),
+                    None,
+                    Some(file_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                    Some(alias.clone()),
+                    Some(e.to_string()),
+                    false,
+                ));
+            }
+        }
+        progress.fetch_add(1, Ordering::Relaxed);
+    }
+
+    SignJobResult { ok_count, skipped, errors, pairs, audit_entries }
 }
 
 pub fn sig_path_for(file_path: &Path) -> std::path::PathBuf {

@@ -23,6 +23,7 @@ close            = "Close"
 quick_sign_title = "Quick Sign"
 open_app         = "Open application"
 open_folder      = "Open folder"
+task_running     = "A task is running — please wait before closing"
 
 [vault]
 title = "Vault"
@@ -164,6 +165,7 @@ compat_add_yes              = "Add to profile"
 compat_add_later            = "Later"
 done_authenticode           = "Authenticode (embedded in file)"
 done_sidecar                = "Sidecar .sig files"
+signing_progress            = "Signing files…"
 
 [settings]
 title = "Settings"
@@ -197,8 +199,12 @@ signed_at = "Signed at"
 file_hash = "File hash"
 cert_fingerprint = "Certificate fingerprint"
 metadata = "Embedded metadata"
-expected = "Expected hash"
-actual = "Actual hash"
+expected               = "Expected hash"
+actual                 = "Actual hash"
+authenticode_info      = "Authenticode signature (embedded in file)"
+authenticode_signer    = "Signer"
+authenticode_timestamp = "Timestamp"
+no_sig_file_needed     = "PowerShell file — verified via Authenticode, no .sig file required."
 
 [audit]
 title = "Audit log"

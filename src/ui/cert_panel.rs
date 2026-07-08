@@ -83,6 +83,29 @@ fn show_cert_list(ui: &mut Ui, state: &mut AppState) {
 fn show_cert_actions(ui: &mut Ui, state: &mut AppState) {
     let lang = state.lang.clone();
 
+    // Handle background cert gen result (CertPanel context only)
+    if matches!(state.bg_cert_result.as_ref(), Some((crate::app::BgCertContext::CertPanel, _))) {
+        let (_, result) = state.bg_cert_result.take().unwrap();
+        match result {
+            Ok(entry) => {
+                let alias = entry.alias.clone();
+                match state.vault.add_certificate(entry) {
+                    Ok(()) => {
+                        state.status_msg = Some((lang.get("cert.created_ok").to_string(), theme::GREEN));
+                        state.selected_cert = Some(alias.clone());
+                        state.new_cert = crate::app::NewCertForm::default();
+                        state.audit.append(crate::audit::AuditEntry::new(
+                            crate::audit::AuditAction::CertCreate,
+                            "operator".into(), None, None, Some(alias), None, true,
+                        )).ok();
+                    }
+                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                }
+            }
+            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+        }
+    }
+
     if let Some(alias) = state.selected_cert.clone() {
         if let Ok(cert) = state.vault.get_cert(&alias).cloned() {
             show_cert_detail(ui, state, &cert);
@@ -239,6 +262,9 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
 
 fn show_create_form(ui: &mut Ui, state: &mut AppState) {
     let lang = state.lang.clone();
+    let cert_gen_in_progress = state.bg_cert_gen.as_ref()
+        .map(|b| b.context == crate::app::BgCertContext::CertPanel)
+        .unwrap_or(false);
 
     egui::Grid::new("cert_create_grid").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
         ui.label(lang.get("cert.alias"));
@@ -286,7 +312,12 @@ fn show_create_form(ui: &mut Ui, state: &mut AppState) {
     });
 
     ui.add_space(4.0);
-    if ui.button(lang.get("cert.btn_create")).clicked() {
+    if cert_gen_in_progress {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(RichText::new(state.bg_cert_gen.as_ref().map(|b| b.label.as_str()).unwrap_or("")).small().weak());
+        });
+    } else if ui.button(lang.get("cert.btn_create")).clicked() {
         if state.new_cert.alias.is_empty() || state.new_cert.common_name.is_empty() {
             state.status_msg = Some((lang.get("cert.fields_required").to_string(), theme::RED));
         } else {
@@ -299,23 +330,33 @@ fn show_create_form(ui: &mut Ui, state: &mut AppState) {
                 email: state.new_cert.email.clone(),
                 valid_days: state.new_cert.valid_days,
             };
-            match builder.build() {
-                Ok(entry) => {
-                    let alias = entry.alias.clone();
-                    match state.vault.add_certificate(entry) {
-                        Ok(()) => {
-                            state.status_msg = Some((lang.get("cert.created_ok").to_string(), theme::GREEN));
-                            state.selected_cert = Some(alias.clone());
-                            state.new_cert = crate::app::NewCertForm::default();
-                            state.audit.append(crate::audit::AuditEntry::new(
-                                crate::audit::AuditAction::CertCreate,
-                                "operator".into(), None, None, Some(alias), None, true,
-                            )).ok();
+            let is_rsa = matches!(state.new_cert.algorithm, KeyAlgorithm::Rsa2048 | KeyAlgorithm::Rsa4096);
+            if is_rsa {
+                let (tx, rx) = std::sync::mpsc::channel();
+                let label = format!("{} {}...", lang.get("cert.btn_create"), state.new_cert.algorithm);
+                std::thread::spawn(move || { tx.send(builder.build()).ok(); });
+                state.bg_cert_gen = Some(crate::app::BgCertGen {
+                    rx, label, context: crate::app::BgCertContext::CertPanel,
+                });
+            } else {
+                match builder.build() {
+                    Ok(entry) => {
+                        let alias = entry.alias.clone();
+                        match state.vault.add_certificate(entry) {
+                            Ok(()) => {
+                                state.status_msg = Some((lang.get("cert.created_ok").to_string(), theme::GREEN));
+                                state.selected_cert = Some(alias.clone());
+                                state.new_cert = crate::app::NewCertForm::default();
+                                state.audit.append(crate::audit::AuditEntry::new(
+                                    crate::audit::AuditAction::CertCreate,
+                                    "operator".into(), None, None, Some(alias), None, true,
+                                )).ok();
+                            }
+                            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
                         }
-                        Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
                     }
+                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
                 }
-                Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
             }
         }
     }

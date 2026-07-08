@@ -21,6 +21,7 @@ close            = "Chiudi"
 quick_sign_title = "Firma rapida"
 open_app         = "Apri l'applicazione"
 open_folder      = "Apri cartella"
+task_running     = "Un'operazione è in corso — attendere prima di chiudere"
 
 [vault]
 title              = "Cassaforte"
@@ -162,6 +163,7 @@ compat_add_yes              = "Aggiungi al profilo"
 compat_add_later            = "Più tardi"
 done_authenticode           = "Authenticode (incorporato nel file)"
 done_sidecar                = "File sidecar .sig"
+signing_progress            = "Firma file in corso…"
 
 [settings]
 title                       = "Impostazioni"
@@ -195,8 +197,12 @@ signed_at        = "Firmato il"
 file_hash        = "Hash file"
 cert_fingerprint = "Impronta certificato"
 metadata         = "Metadati incorporati"
-expected         = "Hash atteso"
-actual           = "Hash effettivo"
+expected               = "Hash atteso"
+actual                 = "Hash effettivo"
+authenticode_info      = "Firma Authenticode (incorporata nel file)"
+authenticode_signer    = "Firmatario"
+authenticode_timestamp = "Timestamp"
+no_sig_file_needed     = "File PowerShell — verificato via Authenticode, nessun file .sig richiesto."
 
 [audit]
 title       = "Registro di audit"

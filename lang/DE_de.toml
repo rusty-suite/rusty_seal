@@ -21,6 +21,7 @@ close            = "Schließen"
 quick_sign_title = "Schnellsignatur"
 open_app         = "Anwendung öffnen"
 open_folder      = "Ordner öffnen"
+task_running     = "Eine Aufgabe läuft — bitte warten, bevor Sie schließen"
 
 [vault]
 title              = "Tresor"
@@ -162,6 +163,7 @@ compat_add_yes              = "Zum Profil hinzufügen"
 compat_add_later            = "Später"
 done_authenticode           = "Authenticode (in Datei eingebettet)"
 done_sidecar                = "Sidecar .sig-Dateien"
+signing_progress            = "Dateien werden signiert…"
 
 [settings]
 title                       = "Einstellungen"
@@ -195,8 +197,12 @@ signed_at        = "Signiert am"
 file_hash        = "Datei-Hash"
 cert_fingerprint = "Zertifikats-Fingerabdruck"
 metadata         = "Eingebettete Metadaten"
-expected         = "Erwarteter Hash"
-actual           = "Tatsächlicher Hash"
+expected               = "Erwarteter Hash"
+actual                 = "Tatsächlicher Hash"
+authenticode_info      = "Authenticode-Signatur (in Datei eingebettet)"
+authenticode_signer    = "Unterzeichner"
+authenticode_timestamp = "Zeitstempel"
+no_sig_file_needed     = "PowerShell-Datei — wird über Authenticode verifiziert, keine .sig-Datei erforderlich."
 
 [audit]
 title       = "Auditprotokoll"

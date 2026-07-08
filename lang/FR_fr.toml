@@ -21,6 +21,7 @@ close            = "Fermer"
 quick_sign_title = "Signature rapide"
 open_app         = "Ouvrir l'application"
 open_folder      = "Ouvrir le dossier"
+task_running     = "Une tâche est en cours — veuillez patienter avant de fermer"
 
 [vault]
 title = "Coffre-fort"
@@ -162,6 +163,7 @@ compat_add_yes              = "Ajouter au profil"
 compat_add_later            = "Plus tard"
 done_authenticode           = "Authenticode (intégré dans le fichier)"
 done_sidecar                = "Fichiers sidecar .sig"
+signing_progress            = "Signature en cours…"
 
 [settings]
 title = "Paramètres"
@@ -195,8 +197,12 @@ signed_at = "Signé le"
 file_hash = "Empreinte du fichier"
 cert_fingerprint = "Empreinte du certificat"
 metadata = "Métadonnées intégrées"
-expected = "Empreinte attendue"
-actual = "Empreinte réelle"
+expected               = "Empreinte attendue"
+actual                 = "Empreinte réelle"
+authenticode_info      = "Signature Authenticode (intégrée au fichier)"
+authenticode_signer    = "Signataire"
+authenticode_timestamp = "Horodatage"
+no_sig_file_needed     = "Fichier PowerShell — vérifié via Authenticode, pas de fichier .sig requis."
 
 [audit]
 title = "Journal d'audit"

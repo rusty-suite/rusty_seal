@@ -38,6 +38,29 @@ impl Default for NewCertForm {
     }
 }
 
+// ── Background task infrastructure ──────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BgCertContext { CertPanel, QuickSignInline }
+
+pub struct BgCertGen {
+    pub rx: std::sync::mpsc::Receiver<crate::error::Result<crate::vault::types::CertEntry>>,
+    pub label: String,
+    pub context: BgCertContext,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BgSignContext { SignPanel, QuickSign }
+
+pub struct BgSign {
+    pub rx: std::sync::mpsc::Receiver<crate::signing::SignJobResult>,
+    pub progress: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    pub total: usize,
+    pub context: BgSignContext,
+}
+
+// ── Tab ──────────────────────────────────────────────────────────────────────
+
 #[derive(Debug, PartialEq)]
 pub enum Tab {
     Vault,
@@ -130,6 +153,14 @@ pub struct AppState {
     pub quick_sign_offer_add_cert_to_profile: Option<(String, String)>,
     // When true: copy the original file and sign the copy (prefix set by lang key)
     pub sign_create_copy: bool,
+
+    // Background tasks
+    pub bg_cert_gen: Option<BgCertGen>,
+    pub bg_sign: Option<BgSign>,
+    /// Pending cert gen result — consumed by the panel that started the task.
+    pub bg_cert_result: Option<(BgCertContext, crate::error::Result<crate::vault::types::CertEntry>)>,
+    /// Pending sign result — consumed by the panel that started the task.
+    pub bg_sign_result: Option<(BgSignContext, crate::signing::SignJobResult)>,
 }
 
 impl AppState {
@@ -193,6 +224,10 @@ impl AppState {
             quick_sign_show_create_cert: false,
             quick_sign_offer_add_cert_to_profile: None,
             sign_create_copy: false,
+            bg_cert_gen: None,
+            bg_sign: None,
+            bg_cert_result: None,
+            bg_sign_result: None,
         }
     }
 }
@@ -227,8 +262,85 @@ impl RustySealApp {
 
 impl eframe::App for RustySealApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        use std::sync::atomic::Ordering;
+
         // Réappliquer le thème sombre chaque frame — eframe/OS peut le réinitialiser
         ctx.set_visuals(theme::dark_visuals());
+
+        // ── Poll background tasks ──────────────────────────────────────────
+        {
+            let cert_done = if let Some(bg) = &self.state.bg_cert_gen {
+                bg.rx.try_recv().ok().map(|r| (bg.context, r))
+            } else { None };
+            if let Some((bg_ctx, result)) = cert_done {
+                self.state.bg_cert_gen = None;
+                self.state.bg_cert_result = Some((bg_ctx, result));
+            }
+        }
+        {
+            let sign_done = if let Some(bg) = &self.state.bg_sign {
+                bg.rx.try_recv().ok().map(|r| (bg.context, r))
+            } else { None };
+            if let Some((bg_ctx, result)) = sign_done {
+                for entry in result.audit_entries.iter().cloned() {
+                    self.state.audit.append(entry).ok();
+                }
+                self.state.bg_sign = None;
+                // Store result with empty audit_entries (already applied above)
+                self.state.bg_sign_result = Some((bg_ctx, crate::signing::SignJobResult {
+                    ok_count: result.ok_count,
+                    skipped: result.skipped,
+                    errors: result.errors,
+                    pairs: result.pairs,
+                    audit_entries: vec![],
+                }));
+            }
+        }
+
+        let has_bg_task = self.state.bg_cert_gen.is_some() || self.state.bg_sign.is_some();
+
+        // Keep repainting while a background task is running
+        if has_bg_task {
+            ctx.request_repaint_after(std::time::Duration::from_millis(50));
+        }
+
+        // Prevent closing while a bg task is in progress
+        if has_bg_task && ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.state.status_msg = Some((
+                self.state.lang.get("common.task_running").to_string(),
+                theme::YELLOW,
+            ));
+            self.state.status_timer = 0.0;
+        }
+
+        // Progress banner (shown above tab bar)
+        if has_bg_task {
+            let progress_frame = egui::Frame::none()
+                .fill(egui::Color32::from_rgb(20, 30, 50))
+                .inner_margin(egui::Margin::symmetric(8.0, 4.0));
+            egui::TopBottomPanel::top("bg_progress_bar")
+                .frame(progress_frame)
+                .show(ctx, |ui| {
+                    if let Some(bg) = &self.state.bg_cert_gen {
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(RichText::new(&bg.label).small().color(theme::GREEN_SOFT));
+                        });
+                    } else if let Some(bg) = &self.state.bg_sign {
+                        let current = bg.progress.load(Ordering::Relaxed);
+                        let total = bg.total;
+                        let frac = if total > 0 { current as f32 / total as f32 } else { 0.0 };
+                        ui.horizontal(|ui| {
+                            ui.spinner();
+                            ui.label(RichText::new(format!(
+                                "{}  {}/{}", self.state.lang.get("sign.signing_progress"), current, total
+                            )).small().color(theme::GREEN_SOFT));
+                            ui.add(egui::ProgressBar::new(frac).desired_width(200.0));
+                        });
+                    }
+                });
+        }
 
         if self.state.close_requested {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);

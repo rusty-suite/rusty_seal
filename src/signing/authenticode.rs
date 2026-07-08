@@ -74,6 +74,8 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
     let file_str = file_path.to_string_lossy().replace('\'', "''");
     let pfx_str = pfx_path.to_string_lossy().replace('\'', "''");
 
+    // Use -LiteralPath (not -FilePath) so that brackets in the filename
+    // like "[Signed] script.ps1" are not interpreted as PowerShell wildcards.
     let ps = format!(
         "$ErrorActionPreference = 'Stop'\n\
          $pfxBytes = [System.IO.File]::ReadAllBytes('{pfx}')\n\
@@ -81,11 +83,11 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
          $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet\n\
          $cert = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2($pfxBytes, $secPw, $flags)\n\
          try {{\n\
-             $result = Set-AuthenticodeSignature -FilePath '{file}' -Certificate $cert -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'\n\
+             $result = Set-AuthenticodeSignature -LiteralPath '{file}' -Certificate $cert -HashAlgorithm SHA256 -TimestampServer 'http://timestamp.digicert.com'\n\
          }} catch {{\n\
-             $result = Set-AuthenticodeSignature -FilePath '{file}' -Certificate $cert -HashAlgorithm SHA256\n\
+             $result = Set-AuthenticodeSignature -LiteralPath '{file}' -Certificate $cert -HashAlgorithm SHA256\n\
          }}\n\
-         Write-Output $result.Status",
+         if ($result) {{ Write-Output $result.Status }} else {{ Write-Output 'Error' }}",
         pfx = pfx_str,
         file = file_str
     );
@@ -114,8 +116,7 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
         "NotSupportedFileFormat" => Err(AppError::Signing(
             "File format not supported for Authenticode".into(),
         )),
-        other if other.is_empty() => Ok(()),
-        other => Err(AppError::Signing(format!("Authenticode status: {}", other))),
+        other => Err(AppError::Signing(format!("Authenticode signing failed: {}", other))),
     }
 }
 
@@ -131,6 +132,43 @@ fn build_pfx(cert: &CertEntry) -> Result<Vec<u8>> {
         .ok_or_else(|| AppError::Signing("Failed to build PFX from certificate".into()))?;
 
     Ok(pfx.to_der())
+}
+
+/// Verifies a PowerShell/Authenticode-signed script file via PowerShell.
+/// Returns (is_valid, status_str, signer_subject, timestamp_subject).
+#[cfg(target_os = "windows")]
+pub fn verify_script(file_path: &Path) -> Result<(bool, String, String, String)> {
+    let file_str = file_path.to_string_lossy().replace('\'', "''");
+    // Use -LiteralPath so brackets in filenames are not treated as wildcards.
+    let ps = format!(
+        "$sig = Get-AuthenticodeSignature -LiteralPath '{file}'\n\
+         $status = $sig.Status.ToString()\n\
+         $subject = if ($sig.SignerCertificate) {{ $sig.SignerCertificate.Subject }} else {{ '' }}\n\
+         $ts = if ($sig.TimeStamperCertificate) {{ $sig.TimeStamperCertificate.Subject }} else {{ '' }}\n\
+         Write-Output \"$status`t$subject`t$ts\"",
+        file = file_str
+    );
+
+    let output = std::process::Command::new("powershell")
+        .args(["-NonInteractive", "-NoProfile", "-Command", &ps])
+        .output()
+        .map_err(|e| AppError::Signing(format!("PowerShell unavailable: {}", e)))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let parts: Vec<&str> = stdout.splitn(3, '\t').collect();
+    let status = parts.first().copied().unwrap_or("").to_string();
+    let subject = parts.get(1).copied().unwrap_or("").to_string();
+    let timestamp = parts.get(2).copied().unwrap_or("").to_string();
+
+    let is_valid = matches!(status.as_str(), "Valid" | "UnknownError");
+    Ok((is_valid, status, subject, timestamp))
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn verify_script(_file_path: &Path) -> Result<(bool, String, String, String)> {
+    Err(AppError::Signing(
+        "Authenticode verification is only supported on Windows".into(),
+    ))
 }
 
 fn has_code_signing_eku(cert: &CertEntry) -> Result<bool> {

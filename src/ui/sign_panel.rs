@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::app::AppState;
-use crate::signing::{sign_file, sig_path_for, write_sig_file};
+use crate::signing::{sign_file, sig_path_for, run_sign_job};
 use crate::ui::theme;
 use crate::vault::types::SigningMetadata;
 
@@ -154,6 +154,26 @@ fn is_pe_file(path: &std::path::Path) -> bool {
 }
 
 fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
+    // Handle background sign result (SignPanel context only)
+    if matches!(state.bg_sign_result.as_ref(), Some((crate::app::BgSignContext::SignPanel, _))) {
+        let (_, result) = state.bg_sign_result.take().unwrap();
+        let lang = state.lang.clone();
+        let mut msg = format!("{} {} {}",
+            lang.get("sign.signed_ok_prefix"), result.ok_count, lang.get("sign.signed_ok_suffix"));
+        if result.skipped > 0 {
+            msg.push_str(&format!(", {} {}", result.skipped, lang.get("sign.skipped")));
+        }
+        if result.errors.is_empty() {
+            state.status_msg = Some((msg, theme::GREEN));
+        } else {
+            state.quick_sign_errors = result.errors;
+            state.status_msg = Some((
+                format!("{} — {} erreur(s)", msg, state.quick_sign_errors.len()),
+                theme::RED,
+            ));
+        }
+    }
+
     let lang = state.lang.clone();
 
     ui.label(RichText::new(lang.get("sign.config")).strong());
@@ -299,8 +319,19 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
 
     ui.add_space(8.0);
 
-    if ui.add_enabled(can_sign, egui::Button::new(RichText::new(lang.get("sign.btn_sign")).strong())).clicked() {
-        do_sign_all(state);
+    let signing_in_progress = state.bg_sign.as_ref()
+        .map(|b| b.context == crate::app::BgSignContext::SignPanel)
+        .unwrap_or(false);
+
+    if signing_in_progress {
+        let bg = state.bg_sign.as_ref().unwrap();
+        let current = bg.progress.load(std::sync::atomic::Ordering::Relaxed);
+        let total = bg.total;
+        let frac = if total > 0 { current as f32 / total as f32 } else { 0.0 };
+        ui.add(egui::ProgressBar::new(frac).animate(true).desired_width(250.0)
+            .text(format!("{} / {}", current, total)));
+    } else if ui.add_enabled(can_sign, egui::Button::new(RichText::new(lang.get("sign.btn_sign")).strong())).clicked() {
+        start_sign_bg(state, crate::app::BgSignContext::SignPanel);
     }
 
     if !can_sign {
@@ -333,163 +364,33 @@ fn sig_output_path(file_path: &std::path::Path, out_dir: &Option<std::path::Path
     }
 }
 
-/// Runs the actual signing loop.
-/// Returns (signed, skipped, errors, signed_pairs) where signed_pairs is
-/// a list of (source_file, output_sig_file) for successfully signed files.
-pub fn perform_sign(state: &mut AppState) -> (usize, usize, Vec<String>, Vec<(std::path::PathBuf, std::path::PathBuf)>) {
+/// Spawns a background sign thread and stores the task handle in `state.bg_sign`.
+pub fn start_sign_bg(state: &mut AppState, context: crate::app::BgSignContext) {
     let alias = state.sign_cert_alias.clone();
-    let meta = state.sign_meta.clone();
+    let cert = match state.vault.get_cert(&alias).cloned() {
+        Ok(c) => c,
+        Err(e) => {
+            state.quick_sign_errors = vec![e.to_string()];
+            return;
+        }
+    };
     let files = state.sign_files.clone();
+    let meta = state.sign_meta.clone();
     let out_dir = state.sign_output_dir.clone();
     let overwrite = state.sign_overwrite_sig;
     let create_copy = state.sign_create_copy;
     let copy_prefix = state.lang.get("sign.signed_copy_prefix").to_string();
+    let total = files.len();
 
-    let cert = match state.vault.get_cert(&alias).cloned() {
-        Ok(c) => c,
-        Err(e) => return (0, 0, vec![e.to_string()], vec![]),
-    };
+    let progress = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let progress_clone = progress.clone();
+    let (tx, rx) = std::sync::mpsc::channel();
 
-    let mut ok_count = 0usize;
-    let mut skipped_count = 0usize;
-    let mut err_msgs = vec![];
-    let mut signed_pairs: Vec<(std::path::PathBuf, std::path::PathBuf)> = vec![];
+    std::thread::spawn(move || {
+        let result = run_sign_job(&files, &cert, meta, &out_dir, overwrite, create_copy, &copy_prefix, &progress_clone);
+        tx.send(result).ok();
+    });
 
-    for file_path in &files {
-        // When copy mode is on, create a prefixed copy first and sign that
-        let target_path = if create_copy {
-            let fname = file_path.file_name().unwrap_or_default().to_string_lossy();
-            let copy_name = format!("{} {}", copy_prefix, fname);
-            let dest_dir = match &out_dir {
-                Some(d) => d.clone(),
-                None => file_path.parent().unwrap_or(std::path::Path::new(".")).to_path_buf(),
-            };
-            let dest = dest_dir.join(&copy_name);
-            if let Err(e) = std::fs::copy(file_path, &dest) {
-                err_msgs.push(format!("{}: {}", file_path.display(), e));
-                continue;
-            }
-            dest
-        } else {
-            file_path.clone()
-        };
-
-        // PowerShell scripts → Authenticode (signature embedded in file)
-        if crate::signing::authenticode::is_authenticode_target(&target_path) {
-            match crate::signing::authenticode::sign_script(&target_path, &cert) {
-                Ok(()) => {
-                    ok_count += 1;
-                    // Write a metadata sidecar alongside the signed PS1 (hash covers the signed file)
-                    let meta_sig_path = sig_path_for(&target_path);
-                    let file_hash = if let Ok(sig) = sign_file(&target_path, &cert, meta.clone()) {
-                        let hash = sig.file_hash.clone();
-                        std::fs::write(&meta_sig_path, sig.to_json_pretty()).ok();
-                        hash
-                    } else {
-                        String::new()
-                    };
-                    signed_pairs.push((target_path.clone(), target_path.clone()));
-                    state.audit.append(crate::audit::AuditEntry::new(
-                        crate::audit::AuditAction::Sign,
-                        "operator".into(),
-                        if file_hash.is_empty() { None } else { Some(file_hash) },
-                        Some(target_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
-                        Some(alias.clone()),
-                        None,
-                        true,
-                    )).ok();
-                }
-                Err(e) => {
-                    err_msgs.push(format!("{}: {}", file_path.display(), e));
-                    // Clean up the copy on failure
-                    if create_copy { std::fs::remove_file(&target_path).ok(); }
-                    state.audit.append(crate::audit::AuditEntry::new(
-                        crate::audit::AuditAction::Sign,
-                        "operator".into(),
-                        None,
-                        Some(target_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
-                        Some(alias.clone()),
-                        Some(e.to_string()),
-                        false,
-                    )).ok();
-                }
-            }
-            continue;
-        }
-
-        // All other files → JSON sidecar
-        // In copy mode the .sig always goes next to the copy; otherwise use out_dir logic
-        let sig_path = if create_copy {
-            sig_path_for(&target_path)
-        } else {
-            sig_output_path(file_path, &out_dir)
-        };
-
-        if sig_path.exists() && !overwrite && !create_copy {
-            skipped_count += 1;
-            continue;
-        }
-
-        match sign_file(&target_path, &cert, meta.clone()) {
-            Ok(sig) => {
-                match std::fs::write(&sig_path, sig.to_json_pretty()) {
-                    Ok(()) => {
-                        ok_count += 1;
-                        signed_pairs.push((target_path.clone(), sig_path));
-                        state.audit.append(crate::audit::AuditEntry::new(
-                            crate::audit::AuditAction::Sign,
-                            "operator".into(),
-                            Some(sig.file_hash.clone()),
-                            Some(sig.file_name.clone()),
-                            Some(alias.clone()),
-                            None,
-                            true,
-                        )).ok();
-                    }
-                    Err(e) => {
-                        err_msgs.push(format!("{}: {}", file_path.display(), e));
-                        if create_copy { std::fs::remove_file(&target_path).ok(); }
-                    }
-                }
-            }
-            Err(e) => {
-                err_msgs.push(format!("{}: {}", file_path.display(), e));
-                if create_copy { std::fs::remove_file(&target_path).ok(); }
-                state.audit.append(crate::audit::AuditEntry::new(
-                    crate::audit::AuditAction::Sign,
-                    "operator".into(),
-                    None,
-                    Some(file_path.file_name().unwrap_or_default().to_string_lossy().to_string()),
-                    Some(alias.clone()),
-                    Some(e.to_string()),
-                    false,
-                )).ok();
-            }
-        }
-    }
-
-    (ok_count, skipped_count, err_msgs, signed_pairs)
-}
-
-fn do_sign_all(state: &mut AppState) {
-    let lang = state.lang.clone();
     state.quick_sign_errors.clear();
-    let (ok_count, skipped_count, err_msgs, _) = perform_sign(state);
-
-    let mut msg = format!("{} {} {}",
-        lang.get("sign.signed_ok_prefix"), ok_count, lang.get("sign.signed_ok_suffix"));
-    if skipped_count > 0 {
-        msg.push_str(&format!(", {} {}", skipped_count, lang.get("sign.skipped")));
-    }
-
-    if err_msgs.is_empty() {
-        state.status_msg = Some((msg, theme::GREEN));
-    } else {
-        // Store errors for inline display AND show in status bar
-        state.quick_sign_errors = err_msgs.clone();
-        state.status_msg = Some((
-            format!("{} — {} erreur(s)", msg, err_msgs.len()),
-            theme::RED,
-        ));
-    }
+    state.bg_sign = Some(crate::app::BgSign { rx, progress, total, context });
 }
