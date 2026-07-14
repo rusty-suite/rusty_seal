@@ -97,6 +97,8 @@ pub struct AppState {
     pub delete_target_idx: Option<usize>,
     pub delete_confirm_code: Option<String>,
     pub delete_confirm_input: String,
+    pub rename_target_idx: Option<usize>,
+    pub rename_name_input: String,
 
     // Cert UI
     pub selected_cert: Option<String>,
@@ -192,6 +194,8 @@ impl AppState {
             delete_target_idx: None,
             delete_confirm_code: None,
             delete_confirm_input: String::new(),
+            rename_target_idx: None,
+            rename_name_input: String::new(),
             selected_cert: None,
             new_cert: NewCertForm::default(),
             import_cert_alias: String::new(),

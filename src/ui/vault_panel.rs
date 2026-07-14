@@ -18,6 +18,8 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
         ui.vertical(|ui| {
             if state.delete_target_idx.is_some() {
                 show_delete_confirm(ui, state);
+            } else if state.rename_target_idx.is_some() {
+                show_rename_form(ui, state);
             } else if state.show_add_vault_form {
                 show_add_vault_form(ui, state);
             } else if state.vault.is_locked() {
@@ -46,6 +48,7 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
 
     let mut switch_to: Option<usize> = None;
     let mut start_delete: Option<usize> = None;
+    let mut start_rename: Option<usize> = None;
 
     for i in 0..registry_len {
         let name = state.vault_registry[i].name.clone();
@@ -81,6 +84,13 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
                 {
                     start_delete = Some(i);
                 }
+
+                if ui.small_button(RichText::new("✏").size(11.0))
+                    .on_hover_text("Rename vault")
+                    .clicked()
+                {
+                    start_rename = Some(i);
+                }
             });
         });
     }
@@ -100,6 +110,12 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
         state.delete_target_idx = Some(idx);
         state.delete_confirm_code = Some(generate_confirm_code());
         state.delete_confirm_input.clear();
+        state.show_add_vault_form = false;
+    }
+
+    if let Some(idx) = start_rename {
+        state.rename_target_idx = Some(idx);
+        state.rename_name_input = state.vault_registry[idx].name.clone();
         state.show_add_vault_form = false;
     }
 
@@ -159,6 +175,60 @@ fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
         if ui.button("Cancel").clicked() {
             state.show_add_vault_form = false;
             state.new_vault_name.clear();
+        }
+    });
+}
+
+fn show_rename_form(ui: &mut Ui, state: &mut AppState) {
+    let target_idx = match state.rename_target_idx {
+        Some(i) => i,
+        None => return,
+    };
+    if target_idx >= state.vault_registry.len() {
+        state.rename_target_idx = None;
+        return;
+    }
+
+    ui.heading(RichText::new("Rename Vault").strong());
+    ui.separator();
+    ui.add_space(8.0);
+
+    egui::Grid::new("rename_vault_grid").num_columns(2).show(ui, |ui| {
+        ui.label("Name");
+        ui.add(egui::TextEdit::singleline(&mut state.rename_name_input)
+            .desired_width(220.0)
+            .hint_text("e.g. Production"));
+        ui.end_row();
+    });
+
+    ui.add_space(12.0);
+
+    let new_name = state.rename_name_input.trim().to_string();
+    let name_valid = !new_name.is_empty();
+
+    ui.horizontal(|ui| {
+        if ui.add_enabled(name_valid, egui::Button::new("Save")).clicked() {
+            let old_name = state.vault_registry[target_idx].name.clone();
+            state.vault_registry[target_idx].name = new_name.clone();
+            app::save_vault_registry(&state.vault_registry_path, &state.vault_registry);
+
+            state.rename_target_idx = None;
+            state.rename_name_input.clear();
+            state.status_msg = Some((
+                format!("Vault \"{}\" renamed to \"{}\".", old_name, new_name),
+                theme::GREEN,
+            ));
+            state.audit.append(AuditEntry::new(
+                AuditAction::VaultRename,
+                "operator".into(), None, None, None,
+                Some(format!("{} -> {}", old_name, new_name)),
+                true,
+            )).ok();
+        }
+
+        if ui.button("Cancel").clicked() {
+            state.rename_target_idx = None;
+            state.rename_name_input.clear();
         }
     });
 }
