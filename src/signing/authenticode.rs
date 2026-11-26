@@ -26,7 +26,7 @@ pub fn check_authenticode_compat(cert: &CertEntry) -> Result<()> {
         ));
     }
     if cert.private_key_pkcs8_der_b64.is_empty() {
-        return Err(AppError::Signing("No private key available".into()));
+        return Err(AppError::Signing("errors.no_private_key".into()));
     }
     if !has_code_signing_eku(cert)? {
         return Err(AppError::Signing(
@@ -129,7 +129,7 @@ fn build_pfx(cert: &CertEntry) -> Result<Vec<u8>> {
         .into_contents();
 
     let pfx = p12::PFX::new(&cert_der, &key_der, None, "rseal", &cert.alias)
-        .ok_or_else(|| AppError::Signing("Failed to build PFX from certificate".into()))?;
+        .ok_or_else(|| AppError::Signing("errors.pfx_build".into()))?;
 
     Ok(pfx.to_der())
 }

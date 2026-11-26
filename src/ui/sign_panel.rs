@@ -168,7 +168,7 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
         } else {
             state.quick_sign_errors = result.errors;
             state.status_msg = Some((
-                format!("{} — {} erreur(s)", msg, state.quick_sign_errors.len()),
+                lang.fmt("sign.with_errors", &[("msg", &msg), ("n", &state.quick_sign_errors.len().to_string())]),
                 theme::RED,
             ));
         }
@@ -370,7 +370,7 @@ pub fn start_sign_bg(state: &mut AppState, context: crate::app::BgSignContext) {
     let cert = match state.vault.get_cert(&alias).cloned() {
         Ok(c) => c,
         Err(e) => {
-            state.quick_sign_errors = vec![e.to_string()];
+            state.quick_sign_errors = vec![e.localized(&state.lang)];
             return;
         }
     };

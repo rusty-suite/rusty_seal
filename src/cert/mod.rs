@@ -171,7 +171,7 @@ fn extract_cert_pem(pem_text: &str) -> Result<String> {
             return Ok(pem_encode(&pem_obj));
         }
     }
-    Err(AppError::Certificate("No CERTIFICATE block found in PEM".into()))
+    Err(AppError::Certificate("errors.no_pem_block".into()))
 }
 
 fn extract_key_from_pem(pem_text: &str) -> Option<String> {

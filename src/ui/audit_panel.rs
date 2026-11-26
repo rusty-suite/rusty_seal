@@ -22,7 +22,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                 let json = state.audit.export_json();
                 match std::fs::write(&dest, json) {
                     Ok(()) => state.status_msg = Some((lang.get("audit.exported_ok").to_string(), theme::GREEN)),
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((crate::error::AppError::from(e).localized(&state.lang), theme::RED)),
                 }
             }
         }
@@ -35,9 +35,9 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                 match state.audit.export_csv() {
                     Ok(csv) => match std::fs::write(&dest, csv) {
                         Ok(()) => state.status_msg = Some((lang.get("audit.exported_ok").to_string(), theme::GREEN)),
-                        Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                        Err(e) => state.status_msg = Some((crate::error::AppError::from(e).localized(&state.lang), theme::RED)),
                     },
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
         }
@@ -90,9 +90,9 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                     }
 
                     if entry.verify_integrity() {
-                        ui.label(RichText::new("ok").color(theme::GREEN).small());
+                        ui.label(RichText::new(lang.get("audit.integrity_ok")).color(theme::GREEN).small());
                     } else {
-                        ui.label(RichText::new("TAMPERED").color(theme::RED).strong().small());
+                        ui.label(RichText::new(lang.get("audit.tampered")).color(theme::RED).strong().small());
                     }
 
                     ui.end_row();
