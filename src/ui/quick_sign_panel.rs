@@ -559,11 +559,14 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
                     .button(RichText::new(lang.get("common.open_folder")))
                     .clicked()
                 {
+                    // Opens the folder in the system file manager.
                     #[cfg(target_os = "windows")]
-                    std::process::Command::new("explorer")
-                        .arg(&dir)
-                        .spawn()
-                        .ok();
+                    let program = "explorer";
+                    #[cfg(target_os = "macos")]
+                    let program = "open";
+                    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+                    let program = "xdg-open";
+                    std::process::Command::new(program).arg(&dir).spawn().ok();
                 }
             }
         }
