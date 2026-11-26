@@ -1,9 +1,14 @@
 use std::path::Path;
+// Authenticode signing itself only exists on Windows.
+#[cfg(target_os = "windows")]
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+#[cfg(target_os = "windows")]
 use pem::parse as pem_parse;
 
 use crate::error::{AppError, Result};
-use crate::vault::types::{CertEntry, KeyAlgorithm};
+use crate::vault::types::CertEntry;
+#[cfg(target_os = "windows")]
+use crate::vault::types::KeyAlgorithm;
 
 /// Returns true if this file should be signed with Authenticode (embedded), not sidecar.
 pub fn is_authenticode_target(path: &Path) -> bool {
