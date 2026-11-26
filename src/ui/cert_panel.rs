@@ -1,7 +1,7 @@
 use egui::{RichText, Ui};
 use crate::app::AppState;
 use crate::cert::{CertBuilder, import_pem, import_der};
-use crate::vault::types::{CertEntry, CertHistory, KeyAlgorithm};
+use crate::vault::types::{CertEntry, KeyAlgorithm};
 use crate::ui::theme;
 use chrono::Utc;
 
