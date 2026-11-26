@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::app::AppState;
-use crate::signing::{sign_file, sig_path_for, run_sign_job};
+use crate::signing::run_sign_job;
 use crate::ui::theme;
 use crate::vault::types::SigningMetadata;
 
@@ -168,7 +168,7 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
         } else {
             state.quick_sign_errors = result.errors;
             state.status_msg = Some((
-                format!("{} — {} erreur(s)", msg, state.quick_sign_errors.len()),
+                lang.fmt("sign.with_errors", &[("msg", &msg), ("n", &state.quick_sign_errors.len().to_string())]),
                 theme::RED,
             ));
         }
@@ -353,24 +353,13 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
     }
 }
 
-fn sig_output_path(file_path: &std::path::Path, out_dir: &Option<std::path::PathBuf>) -> std::path::PathBuf {
-    match out_dir {
-        None => sig_path_for(file_path),
-        Some(dir) => {
-            let mut name = file_path.file_name().unwrap_or_default().to_os_string();
-            name.push(".sig");
-            dir.join(name)
-        }
-    }
-}
-
 /// Spawns a background sign thread and stores the task handle in `state.bg_sign`.
 pub fn start_sign_bg(state: &mut AppState, context: crate::app::BgSignContext) {
     let alias = state.sign_cert_alias.clone();
     let cert = match state.vault.get_cert(&alias).cloned() {
         Ok(c) => c,
         Err(e) => {
-            state.quick_sign_errors = vec![e.to_string()];
+            state.quick_sign_errors = vec![e.localized(&state.lang)];
             return;
         }
     };

@@ -171,7 +171,7 @@ fn extract_cert_pem(pem_text: &str) -> Result<String> {
             return Ok(pem_encode(&pem_obj));
         }
     }
-    Err(AppError::Certificate("No CERTIFICATE block found in PEM".into()))
+    Err(AppError::Certificate("errors.no_pem_block".into()))
 }
 
 fn extract_key_from_pem(pem_text: &str) -> Option<String> {
@@ -227,10 +227,6 @@ fn detect_algorithm(cert: &x509_parser::certificate::X509Certificate) -> KeyAlgo
         "1.2.840.113549.1.1.1" => KeyAlgorithm::Rsa2048,
         _ => KeyAlgorithm::Ed25519,
     }
-}
-
-pub fn export_public_pem(entry: &CertEntry) -> String {
-    entry.certificate_pem.clone()
 }
 
 pub fn export_public_der(entry: &CertEntry) -> Result<Vec<u8>> {

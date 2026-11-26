@@ -1,9 +1,14 @@
 use std::path::Path;
+// Authenticode signing itself only exists on Windows.
+#[cfg(target_os = "windows")]
 use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
+#[cfg(target_os = "windows")]
 use pem::parse as pem_parse;
 
 use crate::error::{AppError, Result};
-use crate::vault::types::{CertEntry, KeyAlgorithm};
+use crate::vault::types::CertEntry;
+#[cfg(target_os = "windows")]
+use crate::vault::types::KeyAlgorithm;
 
 /// Returns true if this file should be signed with Authenticode (embedded), not sidecar.
 pub fn is_authenticode_target(path: &Path) -> bool {
@@ -16,6 +21,7 @@ pub fn is_authenticode_target(path: &Path) -> bool {
     )
 }
 
+#[cfg(target_os = "windows")]
 /// Validates that the cert+algorithm combination is compatible with Windows Authenticode.
 pub fn check_authenticode_compat(cert: &CertEntry) -> Result<()> {
     if cert.algorithm == KeyAlgorithm::Ed25519 {
@@ -26,7 +32,7 @@ pub fn check_authenticode_compat(cert: &CertEntry) -> Result<()> {
         ));
     }
     if cert.private_key_pkcs8_der_b64.is_empty() {
-        return Err(AppError::Signing("No private key available".into()));
+        return Err(AppError::Signing("errors.no_private_key".into()));
     }
     if !has_code_signing_eku(cert)? {
         return Err(AppError::Signing(
@@ -120,6 +126,7 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn build_pfx(cert: &CertEntry) -> Result<Vec<u8>> {
     let key_der = B64.decode(&cert.private_key_pkcs8_der_b64)
         .map_err(|e| AppError::Signing(format!("Key decode: {}", e)))?;
@@ -129,7 +136,7 @@ fn build_pfx(cert: &CertEntry) -> Result<Vec<u8>> {
         .into_contents();
 
     let pfx = p12::PFX::new(&cert_der, &key_der, None, "rseal", &cert.alias)
-        .ok_or_else(|| AppError::Signing("Failed to build PFX from certificate".into()))?;
+        .ok_or_else(|| AppError::Signing("errors.pfx_build".into()))?;
 
     Ok(pfx.to_der())
 }
@@ -171,6 +178,7 @@ pub fn verify_script(_file_path: &Path) -> Result<(bool, String, String, String)
     ))
 }
 
+#[cfg(target_os = "windows")]
 fn has_code_signing_eku(cert: &CertEntry) -> Result<bool> {
     use x509_parser::prelude::*;
     use x509_parser::extensions::ParsedExtension;

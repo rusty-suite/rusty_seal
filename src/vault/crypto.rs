@@ -62,5 +62,5 @@ pub fn decrypt_aes_gcm(ct: &[u8], key: &VaultKey, nonce: &[u8; NONCE_LEN]) -> Re
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(&key.0));
     let nonce = Nonce::from_slice(nonce);
     cipher.decrypt(nonce, ct)
-        .map_err(|_| AppError::Crypto("Decryption failed — wrong password or corrupted vault".into()))
+        .map_err(|_| AppError::Crypto("errors.decrypt_failed".into()))
 }

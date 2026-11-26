@@ -101,7 +101,7 @@ fn do_verify(state: &mut AppState, is_authenticode: bool) {
                 state.verify_result = Some(result);
             }
             Err(e) => {
-                state.status_msg = Some((e.to_string(), theme::RED));
+                state.status_msg = Some((e.localized(&state.lang), theme::RED));
             }
         }
         return;
@@ -124,7 +124,7 @@ fn do_verify(state: &mut AppState, is_authenticode: bool) {
             state.verify_result = Some(result);
         }
         Err(e) => {
-            state.status_msg = Some((e.to_string(), theme::RED));
+            state.status_msg = Some((e.localized(&state.lang), theme::RED));
         }
     }
 }
@@ -241,7 +241,7 @@ fn show_verify_result(ui: &mut Ui, state: &mut AppState, result: &VerifyResult) 
                         ui.add_space(4.0);
 
                         egui::Grid::new("verify_auth_invalid_grid").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
-                            ui.label(RichText::new("Status").weak());
+                            ui.label(RichText::new(lang.get("verify.status_label")).weak());
                             ui.label(RichText::new(status).color(theme::RED).small());
                             ui.end_row();
                             if !subject.is_empty() {

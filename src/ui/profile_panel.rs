@@ -261,7 +261,7 @@ fn show_profile_editor(ui: &mut Ui, state: &mut AppState) {
                             "operator".into(), None, None, None, None, true,
                         )).ok();
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
         }

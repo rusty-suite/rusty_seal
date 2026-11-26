@@ -1,7 +1,7 @@
 use egui::{RichText, Ui};
 use crate::app::AppState;
 use crate::cert::{CertBuilder, import_pem, import_der};
-use crate::vault::types::{CertEntry, CertHistory, KeyAlgorithm};
+use crate::vault::types::{CertEntry, KeyAlgorithm};
 use crate::ui::theme;
 use chrono::Utc;
 
@@ -68,9 +68,9 @@ fn show_cert_list(ui: &mut Ui, state: &mut AppState) {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let exp_label = if days_left < 0 {
-                        "EXPIRED".to_string()
+                        lang.get("cert.expired_badge").to_string()
                     } else {
-                        format!("{}d", days_left)
+                        lang.fmt("cert.days_short", &[("n", &days_left.to_string())])
                     };
                     ui.label(RichText::new(exp_label).small().color(exp_color));
                     ui.label(RichText::new(cert.algorithm.to_string()).small().weak());
@@ -99,10 +99,10 @@ fn show_cert_actions(ui: &mut Ui, state: &mut AppState) {
                             "operator".into(), None, None, Some(alias), None, true,
                         )).ok();
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
-            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+            Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
         }
     }
 
@@ -168,9 +168,9 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
         let has_key = !cert.private_key_pkcs8_der_b64.is_empty();
         ui.label(RichText::new(lang.get("cert.private_key")).weak());
         ui.label(if has_key {
-            RichText::new("✓ present").color(theme::GREEN)
+            RichText::new(lang.get("cert.key_present")).color(theme::GREEN)
         } else {
-            RichText::new("✗ not stored").color(theme::GRAY)
+            RichText::new(lang.get("cert.key_not_stored")).color(theme::GRAY)
         });
         ui.end_row();
     });
@@ -186,7 +186,7 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
             {
                 match std::fs::write(&dest, &cert.certificate_pem) {
                     Ok(()) => state.status_msg = Some((lang.get("cert.exported_ok").to_string(), theme::GREEN)),
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((crate::error::AppError::from(e).localized(&state.lang), theme::RED)),
                 }
             }
         }
@@ -200,7 +200,7 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
                 {
                     match std::fs::write(&dest, &der) {
                         Ok(()) => state.status_msg = Some((lang.get("cert.exported_ok").to_string(), theme::GREEN)),
-                        Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                        Err(e) => state.status_msg = Some((crate::error::AppError::from(e).localized(&state.lang), theme::RED)),
                     }
                 }
             }
@@ -352,10 +352,10 @@ fn show_create_form(ui: &mut Ui, state: &mut AppState) {
                                     "operator".into(), None, None, Some(alias), None, true,
                                 )).ok();
                             }
-                            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                            Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                         }
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
         }
@@ -394,7 +394,7 @@ fn show_import_form(ui: &mut Ui, state: &mut AppState) {
                             "operator".into(), None, None, Some(alias), None, true,
                         )).ok();
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
         }
@@ -420,7 +420,7 @@ fn show_import_form(ui: &mut Ui, state: &mut AppState) {
                             "operator".into(), None, None, Some(alias), None, true,
                         )).ok();
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
         }

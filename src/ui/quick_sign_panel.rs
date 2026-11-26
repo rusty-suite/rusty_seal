@@ -37,10 +37,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                             state.quick_sign_offer_add_cert_to_profile = Some((alias, pid));
                         }
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
-            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+            Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
         }
     }
 
@@ -177,7 +177,7 @@ fn show_unlock_step(ui: &mut Ui, state: &mut AppState) {
                             Some((lang.get("vault.unlocked_ok").to_string(), theme::GREEN));
                     }
                     Err(e) => {
-                        state.status_msg = Some((e.to_string(), theme::RED));
+                        state.status_msg = Some((e.localized(&state.lang), theme::RED));
                     }
                 }
             }
@@ -441,7 +441,7 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
                 .rounding(4.0)
                 .show(ui, |ui| {
                     ui.label(
-                        RichText::new("✗  Échec de la signature :")
+                        RichText::new(lang.get("sign.failed_title"))
                             .strong()
                             .color(theme::RED),
                     );
@@ -559,11 +559,14 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
                     .button(RichText::new(lang.get("common.open_folder")))
                     .clicked()
                 {
+                    // Opens the folder in the system file manager.
                     #[cfg(target_os = "windows")]
-                    std::process::Command::new("explorer")
-                        .arg(&dir)
-                        .spawn()
-                        .ok();
+                    let program = "explorer";
+                    #[cfg(target_os = "macos")]
+                    let program = "open";
+                    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+                    let program = "xdg-open";
+                    std::process::Command::new(program).arg(&dir).spawn().ok();
                 }
             }
         }
@@ -872,10 +875,10 @@ fn show_inline_cert_create(ui: &mut Ui, state: &mut AppState) {
                                         state.quick_sign_offer_add_cert_to_profile = Some((alias, pid));
                                     }
                                 }
-                                Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                                Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                             }
                         }
-                        Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                        Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                     }
                 }
             }

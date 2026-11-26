@@ -25,10 +25,7 @@ pub fn sign_file(
     metadata: SigningMetadata,
 ) -> Result<SignatureFile> {
     if cert.certificate_pem.is_empty() {
-        return Err(AppError::Signing(format!(
-            "Certificate '{}' has no PEM data — please recreate or re-import it",
-            cert.alias
-        )));
+        return Err(AppError::Signing(format!("errors.cert_no_pem|{}", cert.alias)));
     }
 
     let file_hash = hash_file(file_path)?;
@@ -92,30 +89,6 @@ pub fn verify_signature(file_path: &Path, sig_path: &Path) -> Result<VerifyResul
     }
 }
 
-pub fn verify_sig_bytes(sig_json: &str, file_data: &[u8]) -> Result<VerifyResult> {
-    let sig_file = SignatureFile::from_json(sig_json)?;
-
-    let mut h = Sha256::new();
-    h.update(file_data);
-    let actual_hash = format!("SHA256:{}", hex::encode(h.finalize()));
-
-    if actual_hash != sig_file.file_hash {
-        return Ok(VerifyResult::FileMismatch {
-            expected: sig_file.file_hash.clone(),
-            actual: actual_hash,
-        });
-    }
-
-    let message = sig_file.canonical_message();
-    let sig_bytes = B64.decode(&sig_file.signature_b64)
-        .map_err(|e| AppError::Signing(e.to_string()))?;
-
-    match do_verify(&message, &sig_bytes, &sig_file.certificate_pem, &sig_file.algorithm) {
-        Ok(()) => Ok(VerifyResult::Valid(sig_file)),
-        Err(e) => Ok(VerifyResult::InvalidSignature(e.to_string())),
-    }
-}
-
 #[derive(Debug)]
 pub enum VerifyResult {
     Valid(SignatureFile),
@@ -145,7 +118,7 @@ impl VerifyResult {
 
 fn do_sign(message: &[u8], cert: &CertEntry) -> Result<Vec<u8>> {
     if cert.private_key_pkcs8_der_b64.is_empty() {
-        return Err(AppError::Signing("No private key available for this certificate".into()));
+        return Err(AppError::Signing("errors.no_private_key".into()));
     }
 
     let key_der = B64.decode(&cert.private_key_pkcs8_der_b64)
@@ -196,9 +169,7 @@ fn do_verify(message: &[u8], sig: &[u8], cert_pem: &str, algorithm: &str) -> Res
     use x509_parser::prelude::*;
 
     if cert_pem.is_empty() {
-        return Err(AppError::Signing(
-            "No certificate in signature file — file may have been signed with a corrupted cert".into(),
-        ));
+        return Err(AppError::Signing("errors.sig_no_cert".into()));
     }
 
     let pem_obj = pem_parse(cert_pem)
@@ -238,19 +209,6 @@ fn do_verify(message: &[u8], sig: &[u8], cert_pem: &str, algorithm: &str) -> Res
         }
         _ => Err(AppError::Signing(format!("Unknown algorithm: {}", algorithm))),
     }
-}
-
-pub fn write_sig_file(file_path: &Path, sig: &format::SignatureFile) -> Result<()> {
-    let sig_path = file_path.with_extension(
-        format!("{}.sig", file_path.extension().unwrap_or_default().to_string_lossy())
-    );
-    let sig_path = if file_path.extension().is_some() {
-        sig_path
-    } else {
-        file_path.with_extension("sig")
-    };
-    std::fs::write(&sig_path, sig.to_json_pretty())?;
-    Ok(())
 }
 
 /// Result produced by `run_sign_job` — returned across thread boundary.
