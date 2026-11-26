@@ -134,14 +134,14 @@ impl Vault {
 
     fn read_file(&self) -> Result<([u8; SALT_LEN], [u8; NONCE_LEN], Vec<u8>)> {
         let raw = std::fs::read(&self.path)
-            .map_err(|_| AppError::Vault("Cannot read vault file".into()))?;
+            .map_err(|_| AppError::Vault("errors.vault_read".into()))?;
 
         let min_len = 4 + 1 + SALT_LEN + NONCE_LEN + 1;
         if raw.len() < min_len {
-            return Err(AppError::Vault("Vault file corrupted or too small".into()));
+            return Err(AppError::Vault("errors.vault_corrupted".into()));
         }
         if &raw[..4] != VAULT_MAGIC {
-            return Err(AppError::Vault("Invalid vault file (bad magic)".into()));
+            return Err(AppError::Vault("errors.vault_bad_magic".into()));
         }
         let _version = raw[4];
         let offset = 5;
@@ -157,11 +157,11 @@ impl Vault {
     }
 
     pub fn data(&self) -> Result<&VaultData> {
-        self.data.as_ref().ok_or_else(|| AppError::Vault("Vault is locked".into()))
+        self.data.as_ref().ok_or_else(|| AppError::Vault("errors.vault_locked".into()))
     }
 
     pub fn data_mut(&mut self) -> Result<&mut VaultData> {
-        self.data.as_mut().ok_or_else(|| AppError::Vault("Vault is locked".into()))
+        self.data.as_mut().ok_or_else(|| AppError::Vault("errors.vault_locked".into()))
     }
 
     pub fn add_certificate(&mut self, entry: CertEntry) -> Result<()> {
@@ -198,12 +198,12 @@ impl Vault {
         self.data()?
             .certificates
             .get(alias)
-            .ok_or_else(|| AppError::Vault(format!("Certificate '{}' not found", alias)))
+            .ok_or_else(|| AppError::Vault(format!("errors.cert_not_found|{}", alias)))
     }
 
     fn save_internal(&mut self) -> Result<()> {
-        let key = self.key.as_ref().ok_or_else(|| AppError::Vault("Vault locked".into()))?;
-        let data = self.data.as_ref().ok_or_else(|| AppError::Vault("No data".into()))?;
+        let key = self.key.as_ref().ok_or_else(|| AppError::Vault("errors.vault_locked".into()))?;
+        let data = self.data.as_ref().ok_or_else(|| AppError::Vault("errors.vault_no_data".into()))?;
 
         let mut payload = serde_json::to_vec(data)?;
         let compressed = gz_compress(&payload)?;
@@ -242,7 +242,7 @@ impl Vault {
 
     pub fn export_encrypted(&self, dest: &Path, password: &str) -> Result<()> {
         if self.is_locked() {
-            return Err(AppError::Vault("Unlock vault before exporting".into()));
+            return Err(AppError::Vault("errors.unlock_before_export".into()));
         }
         let raw = std::fs::read(&self.path)?;
         let salt = random_salt();
@@ -263,10 +263,10 @@ impl Vault {
     pub fn import_encrypted(src: &Path, dest_vault_path: &Path, password: &str) -> Result<()> {
         let raw = std::fs::read(src)?;
         if raw.len() < 5 + SALT_LEN + NONCE_LEN {
-            return Err(AppError::Vault("Invalid export file".into()));
+            return Err(AppError::Vault("errors.export_invalid".into()));
         }
         if &raw[..4] != b"RSVX" {
-            return Err(AppError::Vault("Not a rusty-seal vault export".into()));
+            return Err(AppError::Vault("errors.export_not_rusty".into()));
         }
         let offset = 5;
         let mut salt = [0u8; SALT_LEN];
@@ -295,9 +295,9 @@ impl Vault {
 
     pub fn change_password(&mut self, _old_pw: &str, new_pw: &str, keyfile: Option<&[u8]>) -> Result<()> {
         if self.is_locked() {
-            return Err(AppError::Vault("Vault is locked".into()));
+            return Err(AppError::Vault("errors.vault_locked".into()));
         }
-        let data = self.data.clone().ok_or_else(|| AppError::Vault("No data".into()))?;
+        let data = self.data.clone().ok_or_else(|| AppError::Vault("errors.vault_no_data".into()))?;
 
         let salt = crypto::random_salt();
         let new_key = derive_key(new_pw.as_bytes(), &salt, keyfile)?;

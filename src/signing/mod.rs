@@ -25,10 +25,7 @@ pub fn sign_file(
     metadata: SigningMetadata,
 ) -> Result<SignatureFile> {
     if cert.certificate_pem.is_empty() {
-        return Err(AppError::Signing(format!(
-            "Certificate '{}' has no PEM data — please recreate or re-import it",
-            cert.alias
-        )));
+        return Err(AppError::Signing(format!("errors.cert_no_pem|{}", cert.alias)));
     }
 
     let file_hash = hash_file(file_path)?;
@@ -145,7 +142,7 @@ impl VerifyResult {
 
 fn do_sign(message: &[u8], cert: &CertEntry) -> Result<Vec<u8>> {
     if cert.private_key_pkcs8_der_b64.is_empty() {
-        return Err(AppError::Signing("No private key available for this certificate".into()));
+        return Err(AppError::Signing("errors.no_private_key".into()));
     }
 
     let key_der = B64.decode(&cert.private_key_pkcs8_der_b64)
@@ -196,9 +193,7 @@ fn do_verify(message: &[u8], sig: &[u8], cert_pem: &str, algorithm: &str) -> Res
     use x509_parser::prelude::*;
 
     if cert_pem.is_empty() {
-        return Err(AppError::Signing(
-            "No certificate in signature file — file may have been signed with a corrupted cert".into(),
-        ));
+        return Err(AppError::Signing("errors.sig_no_cert".into()));
     }
 
     let pem_obj = pem_parse(cert_pem)

@@ -39,8 +39,10 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
             if ui.button(&label).clicked() {
                 if let Ok(new_lang) = crate::i18n::Lang::load_from_file(lang_path) {
                     state.lang = new_lang;
+                    crate::i18n::save_choice(&state.lang_dir, lang_path);
                     state.status_msg = Some((
-                        lang.get("settings.lang_applied").to_string(),
+                        // confirmation in the newly selected language
+                        state.lang.get("settings.lang_applied").to_string(),
                         theme::GREEN,
                     ));
                 }
@@ -48,7 +50,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
         }
 
         if lang_files.is_empty() {
-            ui.label(RichText::new("No language files found in lang directory").weak().italics());
+            ui.label(RichText::new(lang.get("settings.no_lang_files")).weak().italics());
         }
     });
 
@@ -128,7 +130,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
             ui.horizontal(|ui| {
                 if ui.button(lang.get("settings.context_menu_register")).clicked() {
                     if let Ok(exe) = std::env::current_exe() {
-                        register_context_menu(&exe);
+                        register_context_menu(&exe, lang.get("settings.context_menu_label"));
                         state.status_msg = Some((
                             lang.get("settings.context_menu_registered").to_string(),
                             theme::GREEN,
@@ -159,12 +161,13 @@ fn is_context_menu_registered() -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn register_context_menu(exe: &std::path::Path) {
+/// Adds the Explorer context-menu entry; `label` is in the user language.
+fn register_context_menu(exe: &std::path::Path, label: &str) {
     let exe_str = exe.to_string_lossy();
     let cmd = format!("\"{}\" --sign \"%1\"", exe_str);
     std::process::Command::new("reg")
         .args(["add", r"HKCU\Software\Classes\*\shell\RustySeal",
-               "/ve", "/d", "Sign with Rusty Seal", "/f"])
+               "/ve", "/d", label, "/f"])
         .output().ok();
     std::process::Command::new("reg")
         .args(["add", r"HKCU\Software\Classes\*\shell\RustySeal",

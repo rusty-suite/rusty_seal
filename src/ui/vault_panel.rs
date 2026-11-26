@@ -39,7 +39,8 @@ fn generate_confirm_code() -> String {
 }
 
 fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
-    ui.label(RichText::new("Vaults").strong().size(13.0));
+    let lang = state.lang.clone();
+    ui.label(RichText::new(lang.get("vault.list_title")).strong().size(13.0));
     ui.separator();
     ui.add_space(4.0);
 
@@ -79,14 +80,14 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.small_button(RichText::new("🗑").color(theme::RED).size(11.0))
-                    .on_hover_text("Delete vault")
+                    .on_hover_text(lang.get("vault.delete_vault"))
                     .clicked()
                 {
                     start_delete = Some(i);
                 }
 
                 if ui.small_button(RichText::new("✏").size(11.0))
-                    .on_hover_text("Rename vault")
+                    .on_hover_text(lang.get("vault.rename_vault"))
                     .clicked()
                 {
                     start_rename = Some(i);
@@ -123,7 +124,7 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
     ui.separator();
     ui.add_space(4.0);
 
-    if ui.button("+ Add Vault").clicked() {
+    if ui.button(lang.get("vault.add_vault_btn")).clicked() {
         state.show_add_vault_form = true;
         state.delete_target_idx = None;
         state.new_vault_name.clear();
@@ -131,29 +132,30 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
 }
 
 fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
-    ui.heading(RichText::new("Add Vault").strong());
+    let lang = state.lang.clone();
+    ui.heading(RichText::new(lang.get("vault.add_vault_title")).strong());
     ui.separator();
     ui.add_space(8.0);
 
     egui::Grid::new("add_vault_grid").num_columns(2).show(ui, |ui| {
-        ui.label("Name");
+        ui.label(lang.get("vault.name_label"));
         ui.add(egui::TextEdit::singleline(&mut state.new_vault_name)
             .desired_width(220.0)
-            .hint_text("e.g. Production"));
+            .hint_text(lang.get("vault.name_hint")));
         ui.end_row();
     });
 
     ui.add_space(12.0);
-    ui.label(RichText::new("Choose an option:").weak());
+    ui.label(RichText::new(lang.get("vault.choose_option")).weak());
     ui.add_space(4.0);
 
     ui.horizontal(|ui| {
-        if ui.button("📄 Create New Vault…").clicked() {
+        if ui.button(lang.get("vault.create_new")).clicked() {
             let suggested = name_to_filename(&state.new_vault_name);
             if let Some(p) = rfd::FileDialog::new()
-                .set_title("Choose location for new vault")
+                .set_title(lang.get("vault.create_new_title"))
                 .set_file_name(&suggested)
-                .add_filter("Rusty Seal Vault", &["rsvc"])
+                .add_filter(lang.get("vault.file_filter"), &["rsvc"])
                 .save_file()
             {
                 let name = vault_display_name(&state.new_vault_name, &p);
@@ -161,10 +163,10 @@ fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
             }
         }
 
-        if ui.button("📁 Load Existing…").clicked() {
+        if ui.button(lang.get("vault.load_existing")).clicked() {
             if let Some(p) = rfd::FileDialog::new()
-                .set_title("Open existing vault file")
-                .add_filter("Rusty Seal Vault", &["rsvc"])
+                .set_title(lang.get("vault.load_existing_title"))
+                .add_filter(lang.get("vault.file_filter"), &["rsvc"])
                 .pick_file()
             {
                 let name = vault_display_name(&state.new_vault_name, &p);
@@ -172,7 +174,7 @@ fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
             }
         }
 
-        if ui.button("Cancel").clicked() {
+        if ui.button(lang.get("common.cancel")).clicked() {
             state.show_add_vault_form = false;
             state.new_vault_name.clear();
         }
@@ -180,6 +182,7 @@ fn show_add_vault_form(ui: &mut Ui, state: &mut AppState) {
 }
 
 fn show_rename_form(ui: &mut Ui, state: &mut AppState) {
+    let lang = state.lang.clone();
     let target_idx = match state.rename_target_idx {
         Some(i) => i,
         None => return,
@@ -189,15 +192,15 @@ fn show_rename_form(ui: &mut Ui, state: &mut AppState) {
         return;
     }
 
-    ui.heading(RichText::new("Rename Vault").strong());
+    ui.heading(RichText::new(lang.get("vault.rename_title")).strong());
     ui.separator();
     ui.add_space(8.0);
 
     egui::Grid::new("rename_vault_grid").num_columns(2).show(ui, |ui| {
-        ui.label("Name");
+        ui.label(lang.get("vault.name_label"));
         ui.add(egui::TextEdit::singleline(&mut state.rename_name_input)
             .desired_width(220.0)
-            .hint_text("e.g. Production"));
+            .hint_text(lang.get("vault.name_hint")));
         ui.end_row();
     });
 
@@ -207,7 +210,7 @@ fn show_rename_form(ui: &mut Ui, state: &mut AppState) {
     let name_valid = !new_name.is_empty();
 
     ui.horizontal(|ui| {
-        if ui.add_enabled(name_valid, egui::Button::new("Save")).clicked() {
+        if ui.add_enabled(name_valid, egui::Button::new(lang.get("common.save"))).clicked() {
             let old_name = state.vault_registry[target_idx].name.clone();
             state.vault_registry[target_idx].name = new_name.clone();
             app::save_vault_registry(&state.vault_registry_path, &state.vault_registry);
@@ -215,7 +218,7 @@ fn show_rename_form(ui: &mut Ui, state: &mut AppState) {
             state.rename_target_idx = None;
             state.rename_name_input.clear();
             state.status_msg = Some((
-                format!("Vault \"{}\" renamed to \"{}\".", old_name, new_name),
+                lang.fmt("vault.renamed", &[("old", &old_name), ("new", &new_name)]),
                 theme::GREEN,
             ));
             state.audit.append(AuditEntry::new(
@@ -226,7 +229,7 @@ fn show_rename_form(ui: &mut Ui, state: &mut AppState) {
             )).ok();
         }
 
-        if ui.button("Cancel").clicked() {
+        if ui.button(lang.get("common.cancel")).clicked() {
             state.rename_target_idx = None;
             state.rename_name_input.clear();
         }
@@ -274,6 +277,7 @@ fn add_and_switch(state: &mut AppState, name: String, path: std::path::PathBuf) 
 }
 
 fn show_delete_confirm(ui: &mut Ui, state: &mut AppState) {
+    let lang = state.lang.clone();
     let target_idx = match state.delete_target_idx {
         Some(i) => i,
         None => return,
@@ -286,14 +290,14 @@ fn show_delete_confirm(ui: &mut Ui, state: &mut AppState) {
     let vault_name = state.vault_registry[target_idx].name.clone();
     let vault_path = state.vault_registry[target_idx].path.clone();
 
-    ui.heading(RichText::new("⚠ Delete Vault").color(theme::RED_DANGER).strong());
+    ui.heading(RichText::new(lang.get("vault.delete_title")).color(theme::RED_DANGER).strong());
     ui.separator();
     ui.add_space(8.0);
 
-    ui.label(format!("You are about to permanently delete \"{}\".", vault_name));
+    ui.label(lang.fmt("vault.delete_about", &[("name", &vault_name)]));
     ui.label(RichText::new(vault_path.to_string_lossy().to_string()).small().weak().monospace());
     ui.add_space(6.0);
-    ui.label(RichText::new("This will erase the vault file from disk. All certificates and keys inside will be lost forever.").color(theme::YELLOW));
+    ui.label(RichText::new(lang.get("vault.delete_warning")).color(theme::YELLOW));
     ui.add_space(12.0);
 
     let code = match &state.delete_confirm_code {
@@ -301,28 +305,28 @@ fn show_delete_confirm(ui: &mut Ui, state: &mut AppState) {
         None => return,
     };
 
-    ui.label("To confirm deletion, type this code exactly:");
+    ui.label(lang.get("vault.delete_confirm_label"));
     ui.add_space(4.0);
     ui.label(RichText::new(&code).monospace().size(26.0).strong().color(theme::RED_DANGER));
     ui.add_space(10.0);
 
     ui.add(egui::TextEdit::singleline(&mut state.delete_confirm_input)
         .desired_width(160.0)
-        .hint_text("Type code here"));
+        .hint_text(lang.get("vault.delete_code_hint")));
 
     ui.add_space(10.0);
 
     let code_matches = state.delete_confirm_input.trim() == code.as_str();
 
     ui.horizontal(|ui| {
-        if ui.button("Cancel").clicked() {
+        if ui.button(lang.get("common.cancel")).clicked() {
             state.delete_target_idx = None;
             state.delete_confirm_code = None;
             state.delete_confirm_input.clear();
         }
 
         let del_btn = egui::Button::new(
-            RichText::new("Delete Permanently").color(theme::RED_DANGER)
+            RichText::new(lang.get("vault.delete_permanently")).color(theme::RED_DANGER)
         );
         if ui.add_enabled(code_matches, del_btn).clicked() {
             perform_delete(state, target_idx, vault_name, vault_path);
@@ -381,7 +385,7 @@ fn perform_delete(
     state.pw_confirm.clear();
 
     state.status_msg = Some((
-        format!("Vault \"{}\" deleted permanently.", vault_name),
+        state.lang.fmt("vault.deleted", &[("name", &vault_name)]),
         theme::GREEN,
     ));
 
@@ -456,7 +460,7 @@ fn show_locked(ui: &mut Ui, state: &mut AppState) {
                         )).ok();
                     }
                     Err(e) => {
-                        state.status_msg = Some((e.to_string(), theme::RED));
+                        state.status_msg = Some((e.localized(&state.lang), theme::RED));
                         state.audit.append(AuditEntry::new(
                             AuditAction::VaultUnlock,
                             "operator".into(), None, None, None, Some(e.to_string()), false,
@@ -522,7 +526,7 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
                 if ui.add(
                     egui::TextEdit::singleline(&mut vault_name)
                         .desired_width(240.0)
-                        .hint_text("My Vault"),
+                        .hint_text(lang.get("vault.name_placeholder")),
                 ).changed() && !vault_name.is_empty() {
                     let new_path = parent_dir.join(name_to_filename(&vault_name));
                     if let Some(rec) = state.vault_registry.get_mut(idx) {
@@ -582,7 +586,7 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
                             };
                         }
                         Err(e) => {
-                            state.status_msg = Some((e.to_string(), theme::RED));
+                            state.status_msg = Some((e.localized(&state.lang), theme::RED));
                         }
                     }
                 }
@@ -590,7 +594,7 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
         } else {
             if ui.button(lang.get("vault.btn_open_existing")).clicked() {
                 if let Some(p) = rfd::FileDialog::new()
-                    .add_filter("Rusty Seal Vault", &["rsvc"])
+                    .add_filter(lang.get("vault.file_filter"), &["rsvc"])
                     .pick_file()
                 {
                     state.vault.path = p.clone();
@@ -636,23 +640,23 @@ fn show_unlocked(ui: &mut Ui, state: &mut AppState) {
     let profile_count = state.vault.profiles().map(|p| p.len()).unwrap_or(0);
 
     ui.group(|ui| {
-        ui.label(RichText::new("Contenu du vault").strong());
+        ui.label(RichText::new(lang.get("vault.content_title")).strong());
         ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.label(format!("📄 {} certificat(s)", cert_count));
-            if ui.small_button("Gérer →").clicked() {
+            ui.label(lang.fmt("vault.cert_count", &[("n", &cert_count.to_string())]));
+            if ui.small_button(lang.get("vault.manage")).clicked() {
                 state.pending_tab_switch = Some(crate::app::Tab::Certificates);
             }
         });
         ui.horizontal(|ui| {
-            ui.label(format!("📁 {} profil(s)", profile_count));
-            if ui.small_button("Gérer →").clicked() {
+            ui.label(lang.fmt("vault.profile_count", &[("n", &profile_count.to_string())]));
+            if ui.small_button(lang.get("vault.manage")).clicked() {
                 state.pending_tab_switch = Some(crate::app::Tab::Profiles);
             }
         });
         if cert_count == 0 {
             ui.add_space(4.0);
-            if ui.button("+ Ajouter un certificat").clicked() {
+            if ui.button(lang.get("vault.add_certificate")).clicked() {
                 state.pending_tab_switch = Some(crate::app::Tab::Certificates);
             }
         }
@@ -662,11 +666,11 @@ fn show_unlocked(ui: &mut Ui, state: &mut AppState) {
     let expiring = state.vault.expiring_certs(&state.vault.config.warn_expiry_days.clone());
     if !expiring.is_empty() {
         ui.group(|ui| {
-            ui.label(RichText::new("⚠ Certificates expiring soon").color(theme::YELLOW).strong());
+            ui.label(RichText::new(lang.get("vault.expiring_title")).color(theme::YELLOW).strong());
             for (cert, days) in &expiring {
                 ui.horizontal(|ui| {
                     ui.label(RichText::new(&cert.alias).strong());
-                    ui.label(RichText::new(format!("— {} days left", days))
+                    ui.label(RichText::new(lang.fmt("vault.days_left", &[("n", &days.to_string())]))
                         .color(theme::expiry_color(*days)));
                 });
             }
@@ -688,7 +692,7 @@ fn show_vault_settings(ui: &mut Ui, state: &mut AppState) {
             ui.label(lang.get("vault.auto_lock_min"));
             ui.add(egui::DragValue::new(&mut state.vault.config.auto_lock_minutes)
                 .range(0..=480)
-                .suffix(" min"));
+                .suffix(lang.get("vault.minutes_suffix")));
             ui.end_row();
         });
     });
@@ -719,7 +723,7 @@ fn show_change_password(ui: &mut Ui, state: &mut AppState) {
                         state.chpw_new.clear();
                         state.chpw_confirm.clear();
                     }
-                    Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                    Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                 }
             }
         }
@@ -744,7 +748,7 @@ fn show_import_export(ui: &mut Ui, state: &mut AppState) {
                     if let Some(dest) = rfd::FileDialog::new()
                         .set_title(lang.get("vault.choose_export"))
                         .set_file_name("vault_export.rsvx")
-                        .add_filter("Vault Export", &["rsvx"])
+                        .add_filter(lang.get("vault.export_filter"), &["rsvx"])
                         .save_file()
                     {
                         match state.vault.export_encrypted(&dest, &state.export_pw) {
@@ -757,7 +761,7 @@ fn show_import_export(ui: &mut Ui, state: &mut AppState) {
                                     None, None, true,
                                 )).ok();
                             }
-                            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                            Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                         }
                         state.export_pw.clear();
                     }
@@ -768,12 +772,12 @@ fn show_import_export(ui: &mut Ui, state: &mut AppState) {
 
             if ui.button(lang.get("vault.btn_import")).clicked() {
                 if let Some(src) = rfd::FileDialog::new()
-                    .add_filter("Vault Export", &["rsvx"])
+                    .add_filter(lang.get("vault.export_filter"), &["rsvx"])
                     .pick_file()
                 {
                     if let Some(dest) = rfd::FileDialog::new()
                         .set_file_name("vault.rsvc")
-                        .add_filter("Rusty Seal Vault", &["rsvc"])
+                        .add_filter(lang.get("vault.file_filter"), &["rsvc"])
                         .save_file()
                     {
                         match crate::vault::Vault::import_encrypted(&src, &dest, &state.export_pw) {
@@ -790,7 +794,7 @@ fn show_import_export(ui: &mut Ui, state: &mut AppState) {
                                     "operator".into(), None, None, None, None, true,
                                 )).ok();
                             }
-                            Err(e) => state.status_msg = Some((e.to_string(), theme::RED)),
+                            Err(e) => state.status_msg = Some((e.localized(&state.lang), theme::RED)),
                         }
                         state.export_pw.clear();
                     }
