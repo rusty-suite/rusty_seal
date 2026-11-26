@@ -16,6 +16,7 @@ pub fn is_authenticode_target(path: &Path) -> bool {
     )
 }
 
+#[cfg(target_os = "windows")]
 /// Validates that the cert+algorithm combination is compatible with Windows Authenticode.
 pub fn check_authenticode_compat(cert: &CertEntry) -> Result<()> {
     if cert.algorithm == KeyAlgorithm::Ed25519 {
@@ -120,6 +121,7 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
     }
 }
 
+#[cfg(target_os = "windows")]
 fn build_pfx(cert: &CertEntry) -> Result<Vec<u8>> {
     let key_der = B64.decode(&cert.private_key_pkcs8_der_b64)
         .map_err(|e| AppError::Signing(format!("Key decode: {}", e)))?;
@@ -171,6 +173,7 @@ pub fn verify_script(_file_path: &Path) -> Result<(bool, String, String, String)
     ))
 }
 
+#[cfg(target_os = "windows")]
 fn has_code_signing_eku(cert: &CertEntry) -> Result<bool> {
     use x509_parser::prelude::*;
     use x509_parser::extensions::ParsedExtension;
