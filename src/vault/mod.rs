@@ -37,10 +37,6 @@ impl Vault {
         self.key.is_none()
     }
 
-    pub fn is_open(&self) -> bool {
-        !self.is_locked()
-    }
-
     pub fn exists(&self) -> bool {
         self.path.exists()
     }
@@ -285,11 +281,6 @@ impl Vault {
         }
         std::fs::write(dest_vault_path, &vault_bytes)?;
         set_vault_permissions(dest_vault_path);
-        Ok(())
-    }
-
-    pub fn delete_file(&self) -> Result<()> {
-        std::fs::remove_file(&self.path)?;
         Ok(())
     }
 

@@ -229,10 +229,6 @@ fn detect_algorithm(cert: &x509_parser::certificate::X509Certificate) -> KeyAlgo
     }
 }
 
-pub fn export_public_pem(entry: &CertEntry) -> String {
-    entry.certificate_pem.clone()
-}
-
 pub fn export_public_der(entry: &CertEntry) -> Result<Vec<u8>> {
     let pem_obj = pem_parse(&entry.certificate_pem)
         .map_err(|e| AppError::Certificate(e.to_string()))?;

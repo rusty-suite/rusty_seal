@@ -282,7 +282,7 @@ mod tests {
         let lang = Lang { strings: HashMap::new() };
         let e = crate::error::AppError::Vault("errors.cert_not_found|demo".into());
         assert_eq!(e.localized(&lang), "Vault error: Certificate 'demo' not found");
-        let raw = crate::error::AppError::Network("timeout".into());
-        assert_eq!(raw.localized(&lang), "Network error: timeout");
+        let raw = crate::error::AppError::Signing("timeout".into());
+        assert_eq!(raw.localized(&lang), "Signing error: timeout");
     }
 }

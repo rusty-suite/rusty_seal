@@ -1,6 +1,5 @@
 use egui::{RichText, Ui};
 use crate::app::AppState;
-use crate::audit::AuditAction;
 use crate::ui::theme;
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {

@@ -89,30 +89,6 @@ pub fn verify_signature(file_path: &Path, sig_path: &Path) -> Result<VerifyResul
     }
 }
 
-pub fn verify_sig_bytes(sig_json: &str, file_data: &[u8]) -> Result<VerifyResult> {
-    let sig_file = SignatureFile::from_json(sig_json)?;
-
-    let mut h = Sha256::new();
-    h.update(file_data);
-    let actual_hash = format!("SHA256:{}", hex::encode(h.finalize()));
-
-    if actual_hash != sig_file.file_hash {
-        return Ok(VerifyResult::FileMismatch {
-            expected: sig_file.file_hash.clone(),
-            actual: actual_hash,
-        });
-    }
-
-    let message = sig_file.canonical_message();
-    let sig_bytes = B64.decode(&sig_file.signature_b64)
-        .map_err(|e| AppError::Signing(e.to_string()))?;
-
-    match do_verify(&message, &sig_bytes, &sig_file.certificate_pem, &sig_file.algorithm) {
-        Ok(()) => Ok(VerifyResult::Valid(sig_file)),
-        Err(e) => Ok(VerifyResult::InvalidSignature(e.to_string())),
-    }
-}
-
 #[derive(Debug)]
 pub enum VerifyResult {
     Valid(SignatureFile),
@@ -233,19 +209,6 @@ fn do_verify(message: &[u8], sig: &[u8], cert_pem: &str, algorithm: &str) -> Res
         }
         _ => Err(AppError::Signing(format!("Unknown algorithm: {}", algorithm))),
     }
-}
-
-pub fn write_sig_file(file_path: &Path, sig: &format::SignatureFile) -> Result<()> {
-    let sig_path = file_path.with_extension(
-        format!("{}.sig", file_path.extension().unwrap_or_default().to_string_lossy())
-    );
-    let sig_path = if file_path.extension().is_some() {
-        sig_path
-    } else {
-        file_path.with_extension("sig")
-    };
-    std::fs::write(&sig_path, sig.to_json_pretty())?;
-    Ok(())
 }
 
 /// Result produced by `run_sign_job` — returned across thread boundary.

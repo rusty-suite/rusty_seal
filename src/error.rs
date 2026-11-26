@@ -20,17 +20,8 @@ pub enum AppError {
     #[error("Serialization error: {0}")]
     Serde(#[from] serde_json::Error),
 
-    #[error("Network error: {0}")]
-    Network(String),
-
-    #[error("Profile error: {0}")]
-    Profile(String),
-
     #[error("Audit error: {0}")]
     Audit(String),
-
-    #[error("Invalid data: {0}")]
-    InvalidData(String),
 }
 
 impl AppError {
@@ -48,10 +39,7 @@ impl AppError {
             Self::Certificate(d) => ("errors.certificate", d.clone()),
             Self::Signing(d)     => ("errors.signing", d.clone()),
             Self::Serde(e)       => ("errors.serde", e.to_string()),
-            Self::Network(d)     => ("errors.network", d.clone()),
-            Self::Profile(d)     => ("errors.profile", d.clone()),
             Self::Audit(d)       => ("errors.audit", d.clone()),
-            Self::InvalidData(d) => ("errors.invalid_data", d.clone()),
         };
         let detail = match detail.split_once('|') {
             Some((key, arg)) if key.starts_with("errors.") => lang.get(key).replace("{0}", arg),

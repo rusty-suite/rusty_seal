@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::error::{AppError, Result};
 

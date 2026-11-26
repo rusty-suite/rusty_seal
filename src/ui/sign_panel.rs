@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::app::AppState;
-use crate::signing::{sign_file, sig_path_for, run_sign_job};
+use crate::signing::run_sign_job;
 use crate::ui::theme;
 use crate::vault::types::SigningMetadata;
 
@@ -350,17 +350,6 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
                     ui.label(RichText::new(format!("✗ {}", err)).small().color(theme::RED));
                 }
             });
-    }
-}
-
-fn sig_output_path(file_path: &std::path::Path, out_dir: &Option<std::path::PathBuf>) -> std::path::PathBuf {
-    match out_dir {
-        None => sig_path_for(file_path),
-        Some(dir) => {
-            let mut name = file_path.file_name().unwrap_or_default().to_os_string();
-            name.push(".sig");
-            dir.join(name)
-        }
     }
 }
 
