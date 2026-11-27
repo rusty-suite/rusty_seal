@@ -8,6 +8,9 @@ et le projet respecte le [Versionnage sémantique](https://semver.org/lang/fr/) 
 
 ## [Non publié]
 
+### Corrigé
+- Licence déclarée dans `Cargo.toml` : PolyForm Noncommercial 1.0.0 (comme le fichier de licence du dépôt), au lieu de MIT.
+
 ## [0.1.0] - 2026-11-26
 
 Première release publique.
