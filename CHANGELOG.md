@@ -8,6 +8,11 @@ et le projet respecte le [Versionnage sémantique](https://semver.org/lang/fr/) 
 
 ## [Non publié]
 
+## [0.1.1] - 2026-11-27
+
+### Corrigé
+- Licence déclarée dans `Cargo.toml` : PolyForm Noncommercial 1.0.0 (comme le fichier de licence du dépôt), au lieu de MIT.
+
 ## [0.1.0] - 2026-11-26
 
 Première release publique.
@@ -26,5 +31,6 @@ Première release publique.
 - Messages d'erreur traduits.
 - Tests garantissant que toutes les langues ont les mêmes clés et que chaque clé utilisée existe.
 
-[Non publié]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.0...HEAD
+[Non publié]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rusty-suite/rusty_seal/releases/tag/v0.1.0
