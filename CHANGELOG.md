@@ -8,6 +8,11 @@ et le projet respecte le [Versionnage sémantique](https://semver.org/lang/fr/) 
 
 ## [Non publié]
 
+## [0.2.0] - 2026-11-28
+
+### Modifié
+- Licence : GNU GPL v3 ou ultérieure (`GPL-3.0-or-later`) à la place de PolyForm Noncommercial 1.0.0. Le programme devient un logiciel libre, utilisable par tous.
+
 ## [0.1.1] - 2026-11-27
 
 ### Corrigé
@@ -31,6 +36,7 @@ Première release publique.
 - Messages d'erreur traduits.
 - Tests garantissant que toutes les langues ont les mêmes clés et que chaque clé utilisée existe.
 
-[Non publié]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.1...HEAD
+[Non publié]: https://github.com/rusty-suite/rusty_seal/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rusty-suite/rusty_seal/releases/tag/v0.1.0
