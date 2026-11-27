@@ -176,4 +176,9 @@ rusty_seal/
 
 ## Licence
 
-PolyForm Noncommercial
+Copyright © rusty-suite.
+
+Ce programme est un logiciel libre : vous pouvez le redistribuer et/ou le modifier selon les termes de la Licence publique générale GNU publiée par la Free Software Foundation, soit la version 3 de la licence, soit (à votre choix) toute version ultérieure (`GPL-3.0-or-later`).
+Le texte complet se trouve dans [LICENSE](LICENSE).
+
+Ce programme est distribué dans l'espoir qu'il sera utile, mais SANS AUCUNE GARANTIE.
