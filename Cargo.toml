@@ -3,7 +3,7 @@ name = "rusty_seal"
 version = "0.1.0"
 edition = "2021"
 description = "Binary signing and certificate management — Rusty Suite"
-license = "MIT"
+license = "PolyForm-Noncommercial-1.0.0"
 
 [[bin]]
 name = "rusty_seal"
