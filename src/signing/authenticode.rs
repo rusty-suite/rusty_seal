@@ -37,7 +37,7 @@ pub fn check_authenticode_compat(cert: &CertEntry) -> Result<()> {
     if !has_code_signing_eku(cert)? {
         return Err(AppError::Signing(
             "This certificate does not have the Code Signing EKU (1.3.6.1.5.5.7.3.3). \
-             Recreate the certificate — new certificates include this EKU automatically."
+             Recreate the certificate - new certificates include this EKU automatically."
                 .into(),
         ));
     }
@@ -117,7 +117,7 @@ fn run_powershell_sign(file_path: &Path, pfx_path: &Path) -> Result<()> {
 
     match stdout.as_str() {
         // Valid = cert is trusted, UnknownError = self-signed (not in trusted store).
-        // Both mean the signature WAS embedded in the file — that's what we want.
+        // Both mean the signature WAS embedded in the file - that's what we want.
         "Valid" | "UnknownError" => Ok(()),
         "NotSupportedFileFormat" => Err(AppError::Signing(
             "File format not supported for Authenticode".into(),

@@ -9,7 +9,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
     let lang = state.lang.clone();
 
     if state.vault.is_locked() {
-        ui.label(RichText::new(format!("🔒 {}", lang.get("common.vault_locked"))).color(theme::YELLOW));
+        ui.label(RichText::new(format!("{}", lang.get("common.vault_locked"))).color(theme::YELLOW));
         return;
     }
 
@@ -124,7 +124,7 @@ fn show_profile_editor(ui: &mut Ui, state: &mut AppState) {
     for (i, alias) in cert_aliases_snapshot.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(RichText::new(alias).small().monospace());
-            if ui.small_button("✗").clicked() {
+            if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::X, 14.0)).clicked() {
                 to_remove_alias = Some(i);
             }
         });
@@ -193,7 +193,7 @@ fn show_profile_editor(ui: &mut Ui, state: &mut AppState) {
             if let Some(v) = profile.default_metadata.custom.get_mut(k.as_str()) {
                 ui.add(egui::TextEdit::singleline(v).desired_width(160.0));
             }
-            if ui.small_button("✗").clicked() {
+            if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::X, 14.0)).clicked() {
                 to_remove = Some(k.clone());
             }
         });
@@ -231,7 +231,7 @@ fn show_profile_editor(ui: &mut Ui, state: &mut AppState) {
             action = ProfileAction::Save;
         }
         if let Some(ref id) = selected_id {
-            if ui.button(RichText::new(format!("🗑 {}", lang.get("profile.delete")))
+            if ui.button(RichText::new(format!("{}", lang.get("profile.delete")))
                 .color(theme::RED_DANGER))
                 .clicked()
             {

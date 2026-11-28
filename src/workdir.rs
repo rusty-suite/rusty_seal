@@ -24,8 +24,20 @@ fn legacy_dirs() -> Vec<PathBuf> {
     dirs
 }
 
-/// Dossier de travail : ancien dossier s'il contient des coffres, sinon dossier portable.
+/// Dossier portable déjà présent à côté de l'exécutable : il l'emporte toujours sur
+/// l'ancien dossier (choix explicite de l'utilisateur).
+fn existing_portable_dir() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+    let dir = exe.parent()?.join(format!("{APP_ID}-data"));
+    dir.is_dir().then_some(dir)
+}
+
+/// Dossier de travail : dossier portable existant, sinon ancien dossier s'il contient
+/// des coffres, sinon nouveau dossier portable.
 pub fn resolve_workdir() -> PathBuf {
+    if let Some(dir) = existing_portable_dir() {
+        return dir;
+    }
     legacy_dirs()
         .into_iter()
         .find(|d| d.join("vaults.json").is_file())

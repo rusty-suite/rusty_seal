@@ -33,12 +33,12 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
         if let Some(ref dir) = state.sign_output_dir.clone() {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(dir.to_string_lossy().to_string()).small().monospace());
-                if ui.small_button("📁").on_hover_text(lang.get("sign.output_pick")).clicked() {
+                if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FOLDER_OPEN, 14.0)).on_hover_text(lang.get("sign.output_pick")).clicked() {
                     if let Some(d) = rfd::FileDialog::new().pick_folder() {
                         state.sign_output_dir = Some(d);
                     }
                 }
-                if ui.small_button("✗").clicked() {
+                if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::X, 14.0)).clicked() {
                     state.sign_output_dir = None;
                 }
             });

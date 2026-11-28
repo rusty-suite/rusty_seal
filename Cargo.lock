@@ -3341,8 +3341,8 @@ checksum = "b39cdef0fa800fc44525c84ccb54a029961a8215f9619753635a9c0d2538d46d"
 
 [[package]]
 name = "rusty_core"
-version = "0.2.0"
-source = "git+https://github.com/rusty-suite/rusty_kit?tag=v0.2.0#5b7a1adf66770b9ed068af0e045f3bfad972d994"
+version = "0.3.1"
+source = "git+https://github.com/rusty-suite/rusty_kit?tag=v0.3.1#27bfc4d22f21a21897bbc9c771597dd0d4243896"
 dependencies = [
  "chrono",
  "dirs",
@@ -3358,7 +3358,7 @@ dependencies = [
 [[package]]
 name = "rusty_logo"
 version = "0.1.0"
-source = "git+https://github.com/rusty-suite/rusty_kit?tag=v0.2.0#5b7a1adf66770b9ed068af0e045f3bfad972d994"
+source = "git+https://github.com/rusty-suite/rusty_kit?tag=v0.3.1#27bfc4d22f21a21897bbc9c771597dd0d4243896"
 dependencies = [
  "egui",
 ]
@@ -3404,8 +3404,8 @@ dependencies = [
 
 [[package]]
 name = "rusty_ui"
-version = "0.2.0"
-source = "git+https://github.com/rusty-suite/rusty_kit?tag=v0.2.0#5b7a1adf66770b9ed068af0e045f3bfad972d994"
+version = "0.3.1"
+source = "git+https://github.com/rusty-suite/rusty_kit?tag=v0.3.1#27bfc4d22f21a21897bbc9c771597dd0d4243896"
 dependencies = [
  "egui",
  "egui-phosphor",

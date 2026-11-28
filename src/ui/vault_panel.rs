@@ -79,14 +79,14 @@ fn show_vault_list(ui: &mut Ui, state: &mut AppState) {
             }
 
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button(RichText::new("🗑").color(theme::RED).size(11.0))
+                if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::TRASH, 14.0).color(theme::RED))
                     .on_hover_text(lang.get("vault.delete_vault"))
                     .clicked()
                 {
                     start_delete = Some(i);
                 }
 
-                if ui.small_button(RichText::new("✏").size(11.0))
+                if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::PENCIL_SIMPLE, 14.0))
                     .on_hover_text(lang.get("vault.rename_vault"))
                     .clicked()
                 {
@@ -353,7 +353,7 @@ fn perform_delete(
 
     // Fix active_vault_idx and reload active vault if needed
     if state.vault_registry.is_empty() {
-        // No vaults left — create a placeholder default entry
+        // No vaults left - create a placeholder default entry
         let workdir = state.vault_registry_path.parent()
             .unwrap_or(std::path::Path::new("."))
             .to_path_buf();
@@ -435,12 +435,12 @@ fn show_locked(ui: &mut Ui, state: &mut AppState) {
                         .map(|p: &std::path::PathBuf| p.file_name().unwrap_or_default().to_string_lossy().into_owned())
                         .unwrap_or_else(|| lang.get("vault.keyfile_none").to_string());
                     ui.label(RichText::new(&kf_label).small().weak());
-                    if ui.small_button("📁").clicked() {
+                    if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FOLDER_OPEN, 14.0)).clicked() {
                         if let Some(p) = rfd::FileDialog::new().pick_file() {
                             state.keyfile_path = Some(p);
                         }
                     }
-                    if state.keyfile_path.is_some() && ui.small_button("✗").clicked() {
+                    if state.keyfile_path.is_some() && ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::X, 14.0)).clicked() {
                         state.keyfile_path = None;
                     }
                 });
@@ -490,7 +490,7 @@ fn show_vault_location(ui: &mut Ui, state: &mut AppState) {
         ui.horizontal(|ui| {
             let path_str = state.vault.path.to_string_lossy().to_string();
             ui.label(RichText::new(&path_str).small().monospace());
-            if ui.small_button("📁").clicked() {
+            if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FOLDER_OPEN, 14.0)).clicked() {
                 let suggested = state.vault_registry
                     .get(state.active_vault_idx)
                     .map(|r| name_to_filename(&r.name))

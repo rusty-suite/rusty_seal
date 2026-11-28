@@ -1,5 +1,5 @@
 // =============================================================================
-// Rusty Seal — point d'entrée
+// Rusty Seal - point d'entrée
 //
 // Avant l'interface : dossier de travail (portable, ou ancien dossier s'il contient
 // des coffres), journal, réglages, contrôle de la dernière mise à jour (retour

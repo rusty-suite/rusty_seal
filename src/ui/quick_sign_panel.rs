@@ -49,7 +49,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
         ui.set_max_width(520.0);
 
         ui.heading(
-            RichText::new(format!("🔏  {}", lang.get("common.quick_sign_title")))
+            RichText::new(format!("{}", lang.get("common.quick_sign_title")))
                 .size(22.0)
                 .strong()
                 .color(theme::GREEN_SOFT),
@@ -139,7 +139,7 @@ fn show_unlock_step(ui: &mut Ui, state: &mut AppState) {
             ui.label(RichText::new(lang.get("vault.title")).weak().small());
             ui.label(RichText::new(vault_name).strong().small());
             ui.label(
-                RichText::new(format!("  🔒 {}", lang.get("vault.locked")))
+                RichText::new(format!("  {}", lang.get("vault.locked")))
                     .color(theme::YELLOW)
                     .small(),
             );
@@ -212,7 +212,7 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
                     .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
                     .show(ui, |ui| {
                         ui.label(
-                            RichText::new(format!("💡  {}",
+                            RichText::new(format!("{}",
                                 lang.get("sign.compat_add_to_profile")
                                     .replace("{cert}", &cert_alias)
                                     .replace("{profile}", &pname)
@@ -253,7 +253,7 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
 
     ui.group(|ui| {
         ui.label(
-            RichText::new(format!("✅  {}", lang.get("vault.unlocked")))
+            RichText::new(format!("{}", lang.get("vault.unlocked")))
                 .color(theme::GREEN_SOFT)
                 .small(),
         );
@@ -278,7 +278,7 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
                 .map(|c| c.algorithm != crate::vault::types::KeyAlgorithm::Ed25519)
                 .unwrap_or(true);
             if primary_ok {
-                format!("✓ {}", p.name)
+                format!("{}", p.name)
             } else {
                 let has_compat_alt = p.cert_aliases.iter().any(|a| {
                     state.vault.get_cert(a).ok()
@@ -286,9 +286,9 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
                         .unwrap_or(false)
                 });
                 if has_compat_alt {
-                    format!("✓ {}", p.name)
+                    format!("{}", p.name)
                 } else {
-                    format!("⚠ {}", p.name)
+                    format!("{}", p.name)
                 }
             }
         }).collect();
@@ -413,7 +413,7 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
                     .add_enabled(
                         can_sign,
                         egui::Button::new(
-                            RichText::new(format!("✓  {}", lang.get("sign.btn_sign")))
+                            RichText::new(format!("{}", lang.get("sign.btn_sign")))
                                 .strong()
                                 .color(theme::GREEN_SOFT),
                         ),
@@ -434,7 +434,7 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
             });
         }
 
-        // Persistent error display — stays visible until the user changes selection
+        // Persistent error display - stays visible until the user changes selection
         if !state.quick_sign_errors.is_empty() {
             ui.add_space(8.0);
             egui::Frame::new()
@@ -463,7 +463,7 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
     // Success headline
     ui.label(
         RichText::new(format!(
-            "✅  {} {} {}",
+            "{} {} {}",
             lang.get("sign.signed_ok_prefix"),
             signed,
             lang.get("sign.signed_ok_suffix")
@@ -490,12 +490,12 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
         Some(d) => d.to_string_lossy().into_owned(),
     };
     ui.horizontal(|ui| {
-        ui.label(RichText::new("📁").small());
+        ui.label(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FOLDER_OPEN, 12.0));
         ui.label(RichText::new(lang.get("sign.output_dir_label")).weak().small());
         ui.label(RichText::new(&out_label).small().monospace());
     });
 
-    // Per-file results — grouped by signature type
+    // Per-file results - grouped by signature type
     ui.add_space(6.0);
     let pairs = state.quick_sign_signed_paths.clone();
     let authenticode: Vec<_> = pairs.iter().filter(|(s, d)| s == d).collect();
@@ -509,7 +509,7 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
                 ui.label(RichText::new(lang.get("sign.done_authenticode")).small().weak().strong());
                 for (_, sig) in &authenticode {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("✏").small());
+                        ui.label(rusty_ui::icons::rich(rusty_ui::icons::phosphor::PENCIL_SIMPLE, 12.0));
                         ui.label(
                             RichText::new(sig.file_name().unwrap_or_default().to_string_lossy().as_ref())
                                 .small()
@@ -526,7 +526,7 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
                 ui.label(RichText::new(lang.get("sign.done_sidecar")).small().weak().strong());
                 for (_, sig) in &sidecar {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new("📄").small());
+                        ui.label(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FILE_TEXT, 12.0));
                         ui.label(
                             RichText::new(sig.file_name().unwrap_or_default().to_string_lossy().as_ref())
                                 .small()
@@ -545,7 +545,7 @@ fn show_done(ui: &mut Ui, state: &mut AppState, signed: usize, skipped: usize) {
     // Action buttons
     ui.horizontal(|ui| {
         if ui
-            .button(RichText::new(format!("🏠  {}", lang.get("common.open_app"))).strong())
+            .button(RichText::new(format!("{}", lang.get("common.open_app"))).strong())
             .clicked()
         {
             state.quick_sign_mode = false;
@@ -617,7 +617,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
             .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
             .show(ui, |ui| {
                 ui.label(
-                    RichText::new(format!("⚠  {}", lang.get("sign.compat_title")))
+                    RichText::new(format!("{}", lang.get("sign.compat_title")))
                         .strong()
                         .color(theme::YELLOW),
                 );
@@ -627,7 +627,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                         .color(theme::YELLOW),
                 );
 
-                // Live list of compatible certs — updates as soon as a new cert is created
+                // Live list of compatible certs - updates as soon as a new cert is created
                 let compat_certs: Vec<String> = state.vault.certificates()
                     .unwrap_or_default()
                     .iter()
@@ -686,7 +686,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                 });
             });
     } else {
-        // Compatible cert selected — offer to duplicate the previous profile if one was remembered
+        // Compatible cert selected - offer to duplicate the previous profile if one was remembered
         if let Some(prev_id) = state.sign_profile_before_compat_change.clone() {
             if prev_id != "__none__" {
                 let profile_name = state.vault.profiles().unwrap_or_default()
@@ -704,7 +704,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                         .show(ui, |ui| {
                             ui.label(
                                 RichText::new(format!(
-                                    "💡  {}",
+                                    "{}",
                                     lang.get("sign.compat_profile_offer")
                                         .replace("{name}", &name)
                                         .replace("{cert}", &new_cert)
@@ -724,7 +724,7 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                             });
                         });
                 } else {
-                    // Profile no longer exists — clear the tracker
+                    // Profile no longer exists - clear the tracker
                     state.sign_profile_before_compat_change = None;
                 }
             } else {

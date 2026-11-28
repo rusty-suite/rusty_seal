@@ -11,7 +11,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
     let lang = state.lang.clone();
 
     if state.vault.is_locked() {
-        ui.label(RichText::new(format!("🔒 {}", lang.get("common.vault_locked"))).color(theme::YELLOW));
+        ui.label(RichText::new(format!("{}", lang.get("common.vault_locked"))).color(theme::YELLOW));
         return;
     }
 
@@ -82,9 +82,9 @@ fn show_file_selector(ui: &mut Ui, state: &mut AppState) {
         for (i, path) in state.sign_files.iter().enumerate() {
             let name = path.file_name().unwrap_or_default().to_string_lossy();
             ui.horizontal(|ui| {
-                ui.label(RichText::new(format!("📄 {}", name)).small());
+                ui.label(RichText::new(format!("{}", name)).small());
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("✗").clicked() {
+                    if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::X, 14.0)).clicked() {
                         to_remove = Some(i);
                     }
                 });
@@ -271,7 +271,7 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
             if let Some(v) = state.sign_meta.custom.get_mut(k.as_str()) {
                 ui.add(egui::TextEdit::singleline(v).desired_width(140.0));
             }
-            if ui.small_button("✗").clicked() {
+            if ui.small_button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::X, 14.0)).clicked() {
                 to_remove = Some(k.clone());
             }
         });
@@ -282,7 +282,7 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
 
     ui.add_space(8.0);
 
-    // Compatibility check — shown immediately when cert/files change
+    // Compatibility check - shown immediately when cert/files change
     crate::ui::quick_sign_panel::show_compat_block(ui, state, &lang, false);
 
     let can_sign = !state.sign_files.is_empty() && !state.sign_cert_alias.is_empty();
@@ -347,7 +347,7 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
             .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
             .show(ui, |ui| {
                 for err in &state.quick_sign_errors.clone() {
-                    ui.label(RichText::new(format!("✗ {}", err)).small().color(theme::RED));
+                    ui.label(RichText::new(format!("{}", err)).small().color(theme::RED));
                 }
             });
     }

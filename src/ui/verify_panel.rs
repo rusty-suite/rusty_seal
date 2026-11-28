@@ -23,7 +23,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                 .map(|p: &PathBuf| p.file_name().unwrap_or_default().to_string_lossy().into_owned())
                 .unwrap_or_else(|| lang.get("verify.none").to_string());
             ui.label(RichText::new(&label).monospace().small());
-            if ui.button("📁").clicked() {
+            if ui.button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FOLDER_OPEN, 16.0)).clicked() {
                 if let Some(p) = rfd::FileDialog::new().pick_file() {
                     // Auto-clear previous result on new file selection
                     state.verify_result = None;
@@ -46,7 +46,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                     .map(|p: &PathBuf| p.file_name().unwrap_or_default().to_string_lossy().into_owned())
                     .unwrap_or_else(|| lang.get("verify.none").to_string());
                 ui.label(RichText::new(&label).monospace().small());
-                if ui.button("📁").clicked() {
+                if ui.button(rusty_ui::icons::rich(rusty_ui::icons::phosphor::FOLDER_OPEN, 16.0)).clicked() {
                     if let Some(p) = rfd::FileDialog::new()
                         .add_filter("Signature", &["sig"])
                         .pick_file()
@@ -139,7 +139,7 @@ fn show_verify_result(ui: &mut Ui, state: &mut AppState, result: &VerifyResult) 
             match result {
                 VerifyResult::Valid(sig) => {
                     ui.group(|ui| {
-                        ui.label(RichText::new(format!("✓ {}", lang.get("verify.valid"))).color(theme::GREEN).strong().size(16.0));
+                        ui.label(RichText::new(format!("{}", lang.get("verify.valid"))).color(theme::GREEN).strong().size(16.0));
                         ui.add_space(4.0);
 
                         egui::Grid::new("verify_detail_grid").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -215,7 +215,7 @@ fn show_verify_result(ui: &mut Ui, state: &mut AppState, result: &VerifyResult) 
 
                 VerifyResult::AuthenticodeValid { subject, timestamp } => {
                     ui.group(|ui| {
-                        ui.label(RichText::new(format!("✓ {}", lang.get("verify.valid"))).color(theme::GREEN).strong().size(16.0));
+                        ui.label(RichText::new(format!("{}", lang.get("verify.valid"))).color(theme::GREEN).strong().size(16.0));
                         ui.label(RichText::new(lang.get("verify.authenticode_info")).small().weak());
                         ui.add_space(4.0);
 
@@ -236,7 +236,7 @@ fn show_verify_result(ui: &mut Ui, state: &mut AppState, result: &VerifyResult) 
 
                 VerifyResult::AuthenticodeInvalid { status, subject } => {
                     ui.group(|ui| {
-                        ui.label(RichText::new(format!("✗ {}", lang.get("verify.invalid_sig"))).color(theme::RED).strong().size(16.0));
+                        ui.label(RichText::new(format!("{}", lang.get("verify.invalid_sig"))).color(theme::RED).strong().size(16.0));
                         ui.label(RichText::new(lang.get("verify.authenticode_info")).small().weak());
                         ui.add_space(4.0);
 
@@ -255,7 +255,7 @@ fn show_verify_result(ui: &mut Ui, state: &mut AppState, result: &VerifyResult) 
 
                 VerifyResult::FileMismatch { expected, actual } => {
                     ui.group(|ui| {
-                        ui.label(RichText::new(format!("✗ {}", lang.get("verify.file_mismatch"))).color(theme::RED).strong().size(16.0));
+                        ui.label(RichText::new(format!("{}", lang.get("verify.file_mismatch"))).color(theme::RED).strong().size(16.0));
                         ui.add_space(4.0);
                         egui::Grid::new("mismatch_grid").num_columns(2).show(ui, |ui| {
                             ui.label(RichText::new(lang.get("verify.expected")).weak());
@@ -270,7 +270,7 @@ fn show_verify_result(ui: &mut Ui, state: &mut AppState, result: &VerifyResult) 
 
                 VerifyResult::InvalidSignature(msg) => {
                     ui.group(|ui| {
-                        ui.label(RichText::new(format!("✗ {}", lang.get("verify.invalid_sig"))).color(theme::RED).strong().size(16.0));
+                        ui.label(RichText::new(format!("{}", lang.get("verify.invalid_sig"))).color(theme::RED).strong().size(16.0));
                         ui.add_space(4.0);
                         ui.label(RichText::new(msg).small().color(theme::RED));
                     });

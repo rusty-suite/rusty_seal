@@ -79,13 +79,13 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
                     let time = entry.timestamp.format("%m-%d %H:%M:%S").to_string();
                     ui.label(RichText::new(&time).monospace().small());
                     ui.label(RichText::new(entry.action.to_string()).small());
-                    ui.label(RichText::new(entry.file_name.as_deref().unwrap_or("—")).small());
-                    ui.label(RichText::new(entry.cert_alias.as_deref().unwrap_or("—")).small());
+                    ui.label(RichText::new(entry.file_name.as_deref().unwrap_or("-")).small());
+                    ui.label(RichText::new(entry.cert_alias.as_deref().unwrap_or("-")).small());
 
                     if entry.success {
-                        ui.label(RichText::new("✓").color(theme::GREEN).small());
+                        ui.label(rusty_ui::icons::rich(rusty_ui::icons::CHECK, 12.0).color(theme::GREEN));
                     } else {
-                        ui.label(RichText::new("✗").color(theme::RED).small());
+                        ui.label(rusty_ui::icons::rich(rusty_ui::icons::ERROR, 12.0).color(theme::RED));
                     }
 
                     if entry.verify_integrity() {

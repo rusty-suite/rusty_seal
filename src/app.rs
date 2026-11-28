@@ -159,9 +159,9 @@ pub struct AppState {
     // Background tasks
     pub bg_cert_gen: Option<BgCertGen>,
     pub bg_sign: Option<BgSign>,
-    /// Pending cert gen result — consumed by the panel that started the task.
+    /// Pending cert gen result - consumed by the panel that started the task.
     pub bg_cert_result: Option<(BgCertContext, crate::error::Result<crate::vault::types::CertEntry>)>,
-    /// Pending sign result — consumed by the panel that started the task.
+    /// Pending sign result - consumed by the panel that started the task.
     pub bg_sign_result: Option<(BgSignContext, crate::signing::SignJobResult)>,
 }
 
