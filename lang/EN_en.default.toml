@@ -4,6 +4,7 @@
 
 [app]
 lang_name = "English (EN)"
+description = "File signing and certificate vaults"
 
 [tab]
 vault = "Vault"
@@ -209,10 +210,6 @@ with_errors = "{msg} — {n} error(s)"
 
 [settings]
 title = "Settings"
-language = "Interface language"
-lang_available = "Available languages"
-lang_apply = "Apply language"
-lang_applied = "Language applied"
 sign_output = "Signature output"
 sign_output_mode = "Output location"
 sign_overwrite = "If .sig already exists"
@@ -223,7 +220,6 @@ context_menu_not_registered = "Not registered"
 context_menu_register = "Register 'Sign with Rusty Seal'"
 context_menu_unregister = "Unregister"
 context_menu_note = "Adds a right-click menu entry on any file in Windows Explorer."
-no_lang_files = "No language files found in the lang directory"
 context_menu_label = "Sign with Rusty Seal"
 
 [verify]

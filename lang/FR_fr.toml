@@ -2,6 +2,7 @@
 
 [app]
 lang_name = "Français (FR)"
+description = "Signature de fichiers et coffres de certificats"
 
 [tab]
 vault = "Coffre"
@@ -207,10 +208,6 @@ with_errors = "{msg} — {n} erreur(s)"
 
 [settings]
 title = "Paramètres"
-language = "Langue de l'interface"
-lang_available = "Langues disponibles"
-lang_apply = "Appliquer la langue"
-lang_applied = "Langue appliquée"
 sign_output = "Sortie des signatures"
 sign_output_mode = "Emplacement de sortie"
 sign_overwrite = "Si .sig existe déjà"
@@ -221,7 +218,6 @@ context_menu_not_registered = "Non enregistré"
 context_menu_register = "Enregistrer 'Signer avec Rusty Seal'"
 context_menu_unregister = "Désactiver"
 context_menu_note = "Ajoute une entrée au menu clic droit dans l'Explorateur Windows."
-no_lang_files = "Aucun fichier de langue trouvé dans le dossier lang"
 context_menu_label = "Signer avec Rusty Seal"
 
 [verify]

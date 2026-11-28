@@ -95,8 +95,10 @@ fn show_files(ui: &mut Ui, state: &AppState) {
                         .map(|p| p.to_string_lossy().into_owned())
                         .unwrap_or_default();
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(format!("📄 {}", name)).small().strong());
-                        ui.label(RichText::new(dir).small().weak());
+                        ui.label(rusty_ui::icons::rich(rusty_ui::icons::FILE, 14.0).color(rusty_ui::tokens::TEXT_SECONDARY));
+                        ui.label(RichText::new(name.as_ref()).small().strong());
+                        // Dossier coupé avec « … » s'il est trop long, complet en infobulle (charte, 05).
+                        ui.add(egui::Label::new(RichText::new(&dir).small().weak()).truncate()).on_hover_text(&dir);
                     });
                 }
             });
@@ -204,10 +206,10 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
 
         if let Some(pname) = profile_name {
             ui.group(|ui| {
-                egui::Frame::none()
-                    .fill(egui::Color32::from_rgb(10, 40, 20))
-                    .inner_margin(egui::Margin::same(8.0))
-                    .rounding(4.0)
+                egui::Frame::new()
+                    .fill(rusty_ui::tokens::SUCCESS_BG)
+                    .inner_margin(egui::Margin::same(8))
+                    .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
                     .show(ui, |ui| {
                         ui.label(
                             RichText::new(format!("💡  {}",
@@ -435,10 +437,10 @@ fn show_profile_step(ui: &mut Ui, state: &mut AppState) {
         // Persistent error display — stays visible until the user changes selection
         if !state.quick_sign_errors.is_empty() {
             ui.add_space(8.0);
-            egui::Frame::none()
-                .fill(egui::Color32::from_rgb(60, 20, 20))
-                .inner_margin(egui::Margin::same(8.0))
-                .rounding(4.0)
+            egui::Frame::new()
+                .fill(rusty_ui::tokens::DANGER_BG)
+                .inner_margin(egui::Margin::same(8))
+                .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
                 .show(ui, |ui| {
                     ui.label(
                         RichText::new(lang.get("sign.failed_title"))
@@ -609,10 +611,10 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
         }
 
         ui.add_space(6.0);
-        egui::Frame::none()
-            .fill(egui::Color32::from_rgb(60, 30, 0))
-            .inner_margin(egui::Margin::same(8.0))
-            .rounding(4.0)
+        egui::Frame::new()
+            .fill(rusty_ui::tokens::WARNING_BG)
+            .inner_margin(egui::Margin::same(8))
+            .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
             .show(ui, |ui| {
                 ui.label(
                     RichText::new(format!("⚠  {}", lang.get("sign.compat_title")))
@@ -695,10 +697,10 @@ pub fn show_compat_block(ui: &mut Ui, state: &mut AppState, lang: &crate::i18n::
                 if let Some(name) = profile_name {
                     let new_cert = state.sign_cert_alias.clone();
                     ui.add_space(6.0);
-                    egui::Frame::none()
-                        .fill(egui::Color32::from_rgb(10, 40, 20))
-                        .inner_margin(egui::Margin::same(8.0))
-                        .rounding(4.0)
+                    egui::Frame::new()
+                        .fill(rusty_ui::tokens::SUCCESS_BG)
+                        .inner_margin(egui::Margin::same(8))
+                        .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
                         .show(ui, |ui| {
                             ui.label(
                                 RichText::new(format!(
