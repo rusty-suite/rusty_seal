@@ -110,7 +110,7 @@ impl VerifyResult {
                 format!("File hash mismatch\nExpected: {}\nActual: {}", expected, actual)
             }
             Self::InvalidSignature(e) => format!("Invalid signature: {}", e),
-            Self::AuthenticodeValid { subject, .. } => format!("Authenticode valid — {}", subject),
+            Self::AuthenticodeValid { subject, .. } => format!("Authenticode valid - {}", subject),
             Self::AuthenticodeInvalid { status, .. } => format!("Authenticode invalid: {}", status),
         }
     }
@@ -211,7 +211,7 @@ fn do_verify(message: &[u8], sig: &[u8], cert_pem: &str, algorithm: &str) -> Res
     }
 }
 
-/// Result produced by `run_sign_job` — returned across thread boundary.
+/// Result produced by `run_sign_job` - returned across thread boundary.
 pub struct SignJobResult {
     pub ok_count: usize,
     pub skipped: usize,
@@ -220,7 +220,7 @@ pub struct SignJobResult {
     pub audit_entries: Vec<crate::audit::AuditEntry>,
 }
 
-/// Pure signing loop — all inputs passed by value/reference, no AppState access.
+/// Pure signing loop - all inputs passed by value/reference, no AppState access.
 /// Designed to run inside a background thread.  `progress` is incremented once per file.
 pub fn run_sign_job(
     files: &[std::path::PathBuf],

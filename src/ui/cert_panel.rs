@@ -9,7 +9,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
     let lang = state.lang.clone();
 
     if state.vault.is_locked() {
-        ui.label(RichText::new(format!("🔒 {}", lang.get("common.vault_locked"))).color(theme::YELLOW));
+        ui.label(RichText::new(format!("{}", lang.get("common.vault_locked"))).color(theme::YELLOW));
         return;
     }
 
@@ -58,7 +58,7 @@ fn show_cert_list(ui: &mut Ui, state: &mut AppState) {
             };
 
             ui.horizontal(|ui| {
-                let label = RichText::new(format!("📄 {}", cert.alias))
+                let label = RichText::new(format!("{}", cert.alias))
                     .strong()
                     .color(if selected { theme::GREEN_SOFT } else { egui::Color32::WHITE });
 
@@ -131,7 +131,7 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
     let lang = state.lang.clone();
     let now = Utc::now();
 
-    ui.label(RichText::new(format!("📄 {}", cert.alias)).size(16.0).strong());
+    ui.label(RichText::new(format!("{}", cert.alias)).size(16.0).strong());
     ui.add_space(4.0);
 
     egui::Grid::new("cert_detail_grid").num_columns(2).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -216,7 +216,7 @@ fn show_cert_detail(ui: &mut Ui, state: &mut AppState, cert: &CertEntry) {
     ui.add_space(4.0);
 
     let alias_clone = cert.alias.clone();
-    if ui.button(RichText::new(format!("🗑 {}", lang.get("cert.delete")))
+    if ui.button(RichText::new(format!("{}", lang.get("cert.delete")))
         .color(theme::RED_DANGER))
         .clicked()
     {

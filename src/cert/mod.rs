@@ -118,7 +118,7 @@ fn generate_rsa_keypair(bits: usize) -> Result<KeyPair> {
         .map_err(|e| AppError::Certificate(format!("RSA {}-bit generation: {}", bits, e)))?;
 
     // Exporté en PKCS#8 PEM puis rechargé dans rcgen
-    // (ring — backend de rcgen — ne génère pas de clés RSA)
+    // (ring - backend de rcgen - ne génère pas de clés RSA)
     let pem_str = private_key
         .to_pkcs8_pem(LineEnding::LF)
         .map_err(|e| AppError::Certificate(format!("RSA PKCS#8 PEM: {}", e)))?;

@@ -8,6 +8,30 @@ et le projet respecte le [Versionnage sémantique](https://semver.org/lang/fr/) 
 
 ## [Non publié]
 
+## [0.3.0] - 2026-11-28
+
+### Ajouté
+- Nouvelle interface conforme à la charte Rusty Suite : menu latéral réductible avec
+  icônes, barre d'outils, barre d'état (réseau, langues, mise à jour), notifications,
+  logo animé qui suit les tâches de fond, navigation clavier (Alt+1 à Alt+5, F6, F1).
+- Mise à jour automatique avec contrôle SHA-256 et retour à la version précédente si la
+  nouvelle ne démarre pas.
+- Instance unique : un clic droit « Signer » sur d'autres fichiers les ajoute à la
+  fenêtre déjà ouverte.
+- Journal de l'application avec rotation et rapport de plantage.
+
+### Modifié
+- Programme portable : données dans `rusty_seal-data` à côté de l'exécutable. Un ancien
+  dossier (`%APPDATA%/rusty-suite/rusty-seal` ou `~/rusty-seal`) contenant des coffres
+  reste utilisé, sans perte de données.
+- Langue choisie depuis la fenêtre Langue commune (l'ancien choix est repris) ; packs mis
+  à jour depuis GitHub seulement s'ils sont aussi récents que le programme.
+- Textes et boutons : tirets cadratins remplacés, emoji décoratifs retirés ; les boutons à
+  icône utilisent la police d'icônes de la charte.
+- Un dossier `rusty_seal-data` déjà présent à côté de l'exécutable l'emporte sur l'ancien
+  dossier.
+- Fenêtre centrée de 560 pt de haut (écran 1080p à 150 %).
+
 ## [0.2.0] - 2026-11-28
 
 ### Modifié
@@ -36,7 +60,8 @@ Première release publique.
 - Messages d'erreur traduits.
 - Tests garantissant que toutes les langues ont les mêmes clés et que chaque clé utilisée existe.
 
-[Non publié]: https://github.com/rusty-suite/rusty_seal/compare/v0.2.0...HEAD
+[Non publié]: https://github.com/rusty-suite/rusty_seal/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/rusty-suite/rusty_seal/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/rusty-suite/rusty_seal/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/rusty-suite/rusty_seal/releases/tag/v0.1.0
