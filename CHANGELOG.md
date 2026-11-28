@@ -8,6 +8,23 @@ et le projet respecte le [Versionnage sémantique](https://semver.org/lang/fr/) 
 
 ## [Non publié]
 
+### Ajouté
+- Nouvelle interface conforme à la charte Rusty Suite : menu latéral réductible avec
+  icônes, barre d'outils, barre d'état (réseau, langues, mise à jour), notifications,
+  logo animé qui suit les tâches de fond, navigation clavier (Alt+1 à Alt+5, F6, F1).
+- Mise à jour automatique avec contrôle SHA-256 et retour à la version précédente si la
+  nouvelle ne démarre pas.
+- Instance unique : un clic droit « Signer » sur d'autres fichiers les ajoute à la
+  fenêtre déjà ouverte.
+- Journal de l'application avec rotation et rapport de plantage.
+
+### Modifié
+- Programme portable : données dans `rusty_seal-data` à côté de l'exécutable. Un ancien
+  dossier (`%APPDATA%usty-suiteusty-seal` ou `~/rusty-seal`) contenant des coffres
+  reste utilisé, sans perte de données.
+- Langue choisie depuis la fenêtre Langue commune (l'ancien choix est repris) ; packs mis
+  à jour depuis GitHub seulement s'ils sont aussi récents que le programme.
+
 ## [0.2.0] - 2026-11-28
 
 ### Modifié
