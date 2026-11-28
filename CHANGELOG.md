@@ -28,6 +28,7 @@ usty-seal` ou `~/rusty-seal`) contenant des coffres
   reste utilisé, sans perte de données.
 - Langue choisie depuis la fenêtre Langue commune (l'ancien choix est repris) ; packs mis
   à jour depuis GitHub seulement s'ils sont aussi récents que le programme.
+- Textes : tirets cadratins remplacés et emoji décoratifs retirés des titres (charte).
 
 ## [0.2.0] - 2026-11-28
 

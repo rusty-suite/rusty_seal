@@ -1,5 +1,6 @@
 use egui::{RichText, Ui};
 use crate::app::AppState;
+#[cfg(target_os = "windows")] // couleurs du menu contextuel, propre à Windows
 use crate::ui::theme;
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {
