@@ -2,6 +2,7 @@
 
 [app]
 lang_name = "Deutsch (CH)"
+description = "Dateisignatur und Zertifikatstresore"
 
 [tab]
 vault    = "Tresor"
@@ -207,10 +208,6 @@ with_errors = "{msg} — {n} Fehler"
 
 [settings]
 title                       = "Einstellungen"
-language                    = "Oberflächensprache"
-lang_available              = "Verfügbare Sprachen"
-lang_apply                  = "Sprache anwenden"
-lang_applied                = "Sprache angewendet"
 sign_output                 = "Signaturausgabe"
 sign_output_mode            = "Ausgabeort"
 sign_overwrite              = "Falls .sig bereits vorhanden"
@@ -221,7 +218,6 @@ context_menu_not_registered = "Nicht registriert"
 context_menu_register       = "'Mit Rusty Seal signieren' registrieren"
 context_menu_unregister     = "Deregistrieren"
 context_menu_note           = "Fügt einen Rechtsklick-Eintrag im Windows Explorer hinzu."
-no_lang_files = "Keine Sprachdateien im Ordner lang gefunden"
 context_menu_label = "Mit Rusty Seal signieren"
 
 [verify]

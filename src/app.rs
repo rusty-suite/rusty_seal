@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use egui::{Color32, RichText};
+use egui::Color32;
 
 use crate::audit::AuditLog;
 use crate::i18n::Lang;
@@ -61,7 +61,7 @@ pub struct BgSign {
 
 // ── Tab ──────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Tab {
     Vault,
     Certificates,
@@ -134,8 +134,8 @@ pub struct AppState {
     // Tab navigation requested from within a panel
     pub pending_tab_switch: Option<Tab>,
 
-    // Settings
-    pub lang_dir: std::path::PathBuf,
+    /// Dossier de travail (coffres, audit, langues, réglages).
+    pub workdir: std::path::PathBuf,
 
     // Sign output options
     pub sign_output_dir: Option<std::path::PathBuf>,
@@ -173,7 +173,7 @@ impl AppState {
         vault_registry: Vec<VaultRecord>,
         vault_registry_path: PathBuf,
         active_vault_idx: usize,
-        lang_dir: PathBuf,
+        workdir: PathBuf,
     ) -> Self {
         Self {
             lang,
@@ -216,7 +216,7 @@ impl AppState {
             status_msg: None,
             status_timer: 0.0,
             pending_tab_switch: None,
-            lang_dir,
+            workdir,
             sign_output_dir: None,
             sign_overwrite_sig: true,
             quick_sign_mode: false,
@@ -249,49 +249,261 @@ pub fn load_vault_registry(path: &std::path::Path) -> Vec<VaultRecord> {
         .unwrap_or_default()
 }
 
+// ── Application (charte Rusty Suite) ────────────────────────────────────────
+
+use rusty_core::settings::CommonSettings;
+use rusty_core::update::{self, Release};
+use rusty_ui::rusty_logo::{Logo, LogoAnim};
+use rusty_ui::{self as ui, ChromeAction, Tone};
+use std::sync::mpsc::{self, Receiver};
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+const LICENSE: &str = env!("CARGO_PKG_LICENSE");
+const REPOSITORY: &str = "https://github.com/rusty-suite/rusty_seal";
+
+/// Agent HTTP générique (jamais d'information personnelle).
+pub fn user_agent() -> String {
+    format!("{}/{VERSION}", crate::workdir::APP_ID)
+}
+
+/// Réglages persistants (langue, menu réduit, mises à jour).
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize)]
+pub struct Settings {
+    #[serde(default)]
+    pub common: CommonSettings,
+}
+
+/// Sections du menu latéral (Paramètres est le rouage de la barre d'outils, charte 01).
+const SECTIONS: [Tab; 6] = [Tab::Vault, Tab::Certificates, Tab::Profiles, Tab::Sign, Tab::Verify, Tab::Audit];
+
+fn section_icon(tab: Tab) -> &'static str {
+    match tab {
+        Tab::Vault => ui::icons::SHIELD,
+        Tab::Certificates => ui::icons::FILE,
+        Tab::Profiles => ui::icons::FOLDER,
+        Tab::Sign => ui::icons::CHECK,
+        Tab::Verify => ui::icons::SEARCH,
+        Tab::Audit => ui::icons::LOG,
+        Tab::Settings => ui::icons::GEAR,
+    }
+}
+
+fn section_key(tab: Tab) -> &'static str {
+    match tab {
+        Tab::Vault => "tab.vault",
+        Tab::Certificates => "tab.certs",
+        Tab::Profiles => "tab.profiles",
+        Tab::Sign => "tab.sign",
+        Tab::Verify => "tab.verify",
+        Tab::Audit => "tab.audit",
+        Tab::Settings => "tab.settings",
+    }
+}
+
 pub struct RustySealApp {
     state: AppState,
     current_tab: Tab,
+    settings: Settings,
+    logo: Logo,
+    toasts: ui::Toasts,
+    zones: ui::Zones,
+    show_language: bool,
+    show_about: bool,
+    show_update: bool,
+    online: Option<bool>,
+    net_rx: Option<Receiver<bool>>,
+    lang_rx: Option<Receiver<Result<usize, String>>>,
+    update: Option<Release>,
+    update_rx: Option<Receiver<Result<Option<Release>, String>>>,
+    install_rx: Option<Receiver<Result<(), String>>>,
+    args_rx: Receiver<Vec<String>>,
+    had_bg_task: bool,
 }
 
 impl RustySealApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, state: AppState, initial_tab: Tab) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, state: AppState, initial_tab: Tab, settings: Settings, args_rx: Receiver<Vec<String>>, rolled_back: Option<String>) -> Self {
         theme::apply(&cc.egui_ctx);
-        Self {
+        let mut logo = Logo::new(LogoAnim::Encrypt);
+        logo.play_launch(0.0);
+        let mut app = Self {
             state,
             current_tab: initial_tab,
+            settings,
+            logo,
+            toasts: ui::Toasts::default(),
+            zones: ui::Zones::default(),
+            show_language: false,
+            show_about: false,
+            show_update: false,
+            online: None,
+            net_rx: Some(rusty_core::net::check_in_background(user_agent())),
+            lang_rx: None,
+            update: None,
+            update_rx: None,
+            install_rx: None,
+            args_rx,
+            had_bg_task: false,
+        };
+        app.apply_texts(&cc.egui_ctx);
+        if let Some(v) = rolled_back {
+            let core = app.state.lang.core();
+            let text = core.tf("kit.update_restored_text", &[("version", &v)]);
+            app.toasts.push(Tone::Warning, core.t("kit.update_restored"), text);
         }
+        app
+    }
+
+    fn apply_texts(&self, ctx: &egui::Context) {
+        let core = self.state.lang.core().clone();
+        ui::set_texts(ctx, ui::KitTexts::from_lookup(|k| core.t(k)));
+    }
+
+    fn save_settings(&self) {
+        if let Err(e) = rusty_core::settings::save(&self.state.workdir, &self.settings) {
+            log::warn!("Réglages non enregistrés : {e}");
+        }
+    }
+
+    fn set_language(&mut self, ctx: &egui::Context, stem: String) {
+        self.settings.common.language = stem;
+        self.save_settings();
+        self.reload_language(ctx);
+    }
+
+    fn reload_language(&mut self, ctx: &egui::Context) {
+        self.state.lang = Lang::load(&self.state.workdir, &self.settings.common.language);
+        self.apply_texts(ctx);
+    }
+
+    /// Tâches de fond : réseau, langues distantes, mises à jour, autre instance.
+    fn poll_background(&mut self, ctx: &egui::Context) {
+        if let Some(online) = self.net_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.net_rx = None;
+            self.online = Some(online);
+            if online {
+                let (dir, ua) = (self.state.workdir.clone(), user_agent());
+                let (tx, rx) = mpsc::channel();
+                std::thread::spawn(move || {
+                    let _ = tx.send(rusty_core::lang::refresh_remote(crate::workdir::APP_ID, crate::i18n::PACKS, &dir, &ua));
+                });
+                self.lang_rx = Some(rx);
+                if self.settings.common.check_updates {
+                    let (tx, rx) = mpsc::channel();
+                    std::thread::spawn(move || {
+                        let id = crate::workdir::APP_ID;
+                        let _ = tx.send(update::check(id, id, VERSION, &user_agent()).map_err(|e| e.to_string()));
+                    });
+                    self.update_rx = Some(rx);
+                }
+            }
+        }
+        if let Some(Ok(n)) = self.lang_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.lang_rx = None;
+            if n > 0 {
+                self.reload_language(ctx);
+            }
+        }
+        if let Some(result) = self.update_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.update_rx = None;
+            match result {
+                Ok(release) => self.update = release,
+                Err(e) => log::warn!("Vérification des mises à jour impossible : {e}"),
+            }
+        }
+        if let Some(result) = self.install_rx.as_ref().and_then(|rx| rx.try_recv().ok()) {
+            self.install_rx = None;
+            match result {
+                Ok(()) => {
+                    if let Ok(exe) = std::env::current_exe() {
+                        let _ = std::process::Command::new(exe).spawn();
+                    }
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+                Err(e) => {
+                    self.show_update = false;
+                    self.toasts.push(Tone::Error, self.state.lang.core().t("kit.update_failed"), e);
+                }
+            }
+        }
+        // Clic droit « Signer » sur d'autres fichiers pendant que la fenêtre est ouverte.
+        for args in self.args_rx.try_iter().collect::<Vec<_>>() {
+            let files = crate::parse_sign_args(&args);
+            if !files.is_empty() {
+                for f in files {
+                    if !self.state.sign_files.contains(&f) {
+                        self.state.sign_files.push(f);
+                    }
+                }
+                self.state.quick_sign_mode = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+            }
+        }
+    }
+
+    fn start_install(&mut self) {
+        let Some(release) = self.update.clone() else { return };
+        let (dir, ua) = (self.state.workdir.clone(), user_agent());
+        let checksum_text = self.state.lang.core().t("kit.update_checksum");
+        let (tx, rx) = mpsc::channel();
+        std::thread::spawn(move || {
+            let r = update::install(&release, VERSION, &dir, &ua).map_err(|e| match e {
+                update::UpdateError::Checksum => checksum_text,
+                other => other.to_string(),
+            });
+            let _ = tx.send(r);
+        });
+        self.install_rx = Some(rx);
+    }
+
+    /// Messages d'état des panneaux → notifications de la charte (et journal).
+    fn flush_status(&mut self) {
+        if let Some((msg, color)) = self.state.status_msg.take() {
+            let tone = if color == theme::GREEN { Tone::Success } else if color == theme::YELLOW { Tone::Warning } else if color == theme::RED || color == theme::RED_DANGER { Tone::Error } else { Tone::Info };
+            log::info!("{msg}");
+            self.toasts.push(tone, msg, "");
+            self.state.status_timer = 0.0;
+        }
+    }
+
+    /// Bandeau de progression des tâches de fond (génération de certificat, signature).
+    fn background_progress(&self, ui: &mut egui::Ui) {
+        use std::sync::atomic::Ordering;
+        if let Some(bg) = &self.state.bg_cert_gen {
+            ui::progress_bar(ui, "bg_cert", 0.0, &bg.label, "", &[]);
+        } else if let Some(bg) = &self.state.bg_sign {
+            let current = bg.progress.load(Ordering::Relaxed);
+            let frac = if bg.total > 0 { current as f32 / bg.total as f32 } else { 0.0 };
+            ui::progress_bar(ui, "bg_sign", frac, self.state.lang.get("sign.signing_progress"), &format!("{current}/{}", bg.total), &[]);
+        }
+    }
+
+    fn status_info<'a>(&'a self, languages: &'a str, update_version: Option<&'a str>) -> ui::StatusInfo<'a> {
+        ui::StatusInfo { online: self.online, languages, update: update_version, version: VERSION }
     }
 }
 
 impl eframe::App for RustySealApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        use std::sync::atomic::Ordering;
+        let now = ctx.input(|i| i.time);
+        self.zones.begin_frame(ctx);
+        self.poll_background(ctx);
 
-        // Réappliquer le thème sombre chaque frame — eframe/OS peut le réinitialiser
-        ctx.set_visuals(theme::dark_visuals());
-
-        // ── Poll background tasks ──────────────────────────────────────────
-        {
-            let cert_done = if let Some(bg) = &self.state.bg_cert_gen {
-                bg.rx.try_recv().ok().map(|r| (bg.context, r))
-            } else { None };
-            if let Some((bg_ctx, result)) = cert_done {
+        // ── Tâches de fond ─────────────────────────────────────────────────
+        if let Some(bg) = &self.state.bg_cert_gen {
+            if let Ok(result) = bg.rx.try_recv() {
+                let context = bg.context;
                 self.state.bg_cert_gen = None;
-                self.state.bg_cert_result = Some((bg_ctx, result));
+                self.state.bg_cert_result = Some((context, result));
             }
         }
-        {
-            let sign_done = if let Some(bg) = &self.state.bg_sign {
-                bg.rx.try_recv().ok().map(|r| (bg.context, r))
-            } else { None };
-            if let Some((bg_ctx, result)) = sign_done {
+        if let Some(bg) = &self.state.bg_sign {
+            if let Ok(result) = bg.rx.try_recv() {
+                let context = bg.context;
                 for entry in result.audit_entries.iter().cloned() {
                     self.state.audit.append(entry).ok();
                 }
                 self.state.bg_sign = None;
-                // Store result with empty audit_entries (already applied above)
-                self.state.bg_sign_result = Some((bg_ctx, crate::signing::SignJobResult {
+                self.state.bg_sign_result = Some((context, crate::signing::SignJobResult {
                     ok_count: result.ok_count,
                     skipped: result.skipped,
                     errors: result.errors,
@@ -300,187 +512,116 @@ impl eframe::App for RustySealApp {
                 }));
             }
         }
-
         let has_bg_task = self.state.bg_cert_gen.is_some() || self.state.bg_sign.is_some();
-
-        // Keep repainting while a background task is running
+        // Le point du logo suit les tâches de fond (charte, 04).
+        if has_bg_task && !self.had_bg_task {
+            self.logo.start(now);
+        } else if !has_bg_task && self.had_bg_task {
+            let ok = self.state.bg_sign_result.as_ref().map(|(_, r)| r.errors.is_empty()).unwrap_or(true);
+            self.logo.finish(ok, now);
+        }
+        self.had_bg_task = has_bg_task;
         if has_bg_task {
             ctx.request_repaint_after(std::time::Duration::from_millis(50));
         }
-
-        // Prevent closing while a bg task is in progress
+        // Pas de fermeture pendant une tâche de fond.
         if has_bg_task && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.state.status_msg = Some((
-                self.state.lang.get("common.task_running").to_string(),
-                theme::YELLOW,
-            ));
-            self.state.status_timer = 0.0;
+            self.state.status_msg = Some((self.state.lang.get("common.task_running").to_string(), theme::YELLOW));
         }
-
-        // Progress banner (shown above tab bar)
-        if has_bg_task {
-            let progress_frame = egui::Frame::none()
-                .fill(egui::Color32::from_rgb(20, 30, 50))
-                .inner_margin(egui::Margin::symmetric(8.0, 4.0));
-            egui::TopBottomPanel::top("bg_progress_bar")
-                .frame(progress_frame)
-                .show(ctx, |ui| {
-                    if let Some(bg) = &self.state.bg_cert_gen {
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(RichText::new(&bg.label).small().color(theme::GREEN_SOFT));
-                        });
-                    } else if let Some(bg) = &self.state.bg_sign {
-                        let current = bg.progress.load(Ordering::Relaxed);
-                        let total = bg.total;
-                        let frac = if total > 0 { current as f32 / total as f32 } else { 0.0 };
-                        ui.horizontal(|ui| {
-                            ui.spinner();
-                            ui.label(RichText::new(format!(
-                                "{}  {}/{}", self.state.lang.get("sign.signing_progress"), current, total
-                            )).small().color(theme::GREEN_SOFT));
-                            ui.add(egui::ProgressBar::new(frac).desired_width(200.0));
-                        });
-                    }
-                });
-        }
-
         if self.state.close_requested {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
-
         self.state.vault.tick_auto_lock();
 
-        // ── Mode Signature Rapide (lancé via --sign ou le menu contextuel) ──
+        let core = self.state.lang.core().clone();
+        let languages = core.tf("kit.languages_count", &[("count", &rusty_core::lang::STEMS.len().to_string())]);
+        let update_version = self.update.as_ref().map(|r| r.version.clone());
+        let info = ui::AppInfo { name: "Rusty Seal".into(), description: self.state.lang.get("app.description").to_string(), version: VERSION.into() };
+        let mut action = ui::status_bar(ctx, &self.status_info(&languages, update_version.as_deref()));
+
         if self.state.quick_sign_mode {
-            let status_frame = egui::Frame::none()
-                .fill(theme::BG_STATUS)
-                .inner_margin(egui::Margin::symmetric(6.0, 2.0));
-            if let Some((msg, color)) = &self.state.status_msg.clone() {
-                egui::TopBottomPanel::bottom("qs_status")
-                    .frame(status_frame)
-                    .show(ctx, |ui| {
-                        ui.label(egui::RichText::new(msg).color(*color).small());
-                    });
-                self.state.status_timer += ctx.input(|i| i.unstable_dt);
-                if self.state.status_timer > 5.0 {
-                    self.state.status_msg = None;
-                    self.state.status_timer = 0.0;
-                }
+            // Signature rapide (clic droit ou --sign) : page « une tâche ».
+            let a = ui::app_header(ctx, &mut self.logo, &info, &core.code());
+            if a != ChromeAction::None {
+                action = a;
             }
-            let main_frame = egui::Frame::none()
-                .fill(theme::BG_PANEL)
-                .inner_margin(egui::Margin::same(8.0));
-            egui::CentralPanel::default().frame(main_frame).show(ctx, |ui| {
+            ui::content(ctx, true, |ui| {
+                self.background_progress(ui);
                 crate::ui::quick_sign_panel::show(ui, &mut self.state);
             });
-            ctx.request_repaint_after(std::time::Duration::from_secs(1));
-            return;
-        }
-
-        if let Some(tab) = self.state.pending_tab_switch.take() {
-            self.current_tab = tab;
-        }
-
-        let lang = self.state.lang.clone();
-
-        // Barre d'onglets avec fond explicitement sombre
-        let topbar_frame = egui::Frame::none()
-            .fill(theme::BG_TOPBAR)
-            .inner_margin(egui::Margin::symmetric(4.0, 4.0));
-
-        egui::TopBottomPanel::top("tab_bar")
-            .frame(topbar_frame)
-            .show(ctx, |ui| {
-                ui.horizontal(|ui| {
-                    let vault_locked = self.state.vault.is_locked();
-                    let (dot, col) = theme::status_dot(vault_locked);
-                    ui.label(RichText::new(dot).color(col).size(10.0));
-                    ui.label(RichText::new("Rusty Seal").strong().size(14.0).color(egui::Color32::WHITE));
-
-                    ui.separator();
-
-                    let tabs = [
-                        (Tab::Vault,        "🔒", lang.get("tab.vault")),
-                        (Tab::Certificates, "📄", lang.get("tab.certs")),
-                        (Tab::Profiles,     "📁", lang.get("tab.profiles")),
-                        (Tab::Sign,         "✓",  lang.get("tab.sign")),
-                        (Tab::Verify,       "🔍", lang.get("tab.verify")),
-                        (Tab::Audit,        "📋", lang.get("tab.audit")),
-                    ];
-
-                    for (tab, icon, label) in &tabs {
-                        let is_active = &self.current_tab == tab;
-                        // Actif : vert vif  |  Inactif : bleu-gris clair (lisible sur fond sombre)
-                        let col = if is_active { theme::GREEN_SOFT } else { theme::TAB_INACTIVE };
-                        let text = RichText::new(format!("{} {}", icon, label)).color(col);
-
-                        if ui.selectable_label(is_active, text).clicked() {
-                            self.current_tab = match tab {
-                                Tab::Vault        => Tab::Vault,
-                                Tab::Certificates => Tab::Certificates,
-                                Tab::Profiles     => Tab::Profiles,
-                                Tab::Sign         => Tab::Sign,
-                                Tab::Verify       => Tab::Verify,
-                                Tab::Audit        => Tab::Audit,
-                                Tab::Settings     => Tab::Settings,
-                            };
-                        }
-                    }
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let is_settings = self.current_tab == Tab::Settings;
-                        let col = if is_settings { theme::GREEN_SOFT } else { theme::TAB_INACTIVE };
-                        if ui.selectable_label(is_settings, RichText::new("⚙").color(col))
-                            .on_hover_text(lang.get("tab.settings"))
-                            .clicked()
-                        {
-                            self.current_tab = Tab::Settings;
-                        }
-                    });
-                });
+        } else {
+            if let Some(tab) = self.state.pending_tab_switch.take() {
+                self.current_tab = tab;
+            }
+            let labels: Vec<String> = SECTIONS.iter().map(|t| self.state.lang.get(section_key(*t)).to_string()).collect();
+            let items: Vec<ui::SidebarItem> = SECTIONS.iter().zip(&labels).map(|(t, l)| ui::SidebarItem { icon: section_icon(*t), label: l }).collect();
+            // Paramètres n'est pas dans le menu : aucun élément actif dans ce cas.
+            let mut selected = SECTIONS.iter().position(|t| *t == self.current_tab).unwrap_or(usize::MAX);
+            let before = (selected, self.settings.common.sidebar_collapsed);
+            let a = ui::sidebar(ctx, &mut self.logo, &info, &items, &mut selected, &mut self.settings.common.sidebar_collapsed);
+            if a != ChromeAction::None {
+                action = a;
+            }
+            if selected != before.0 && selected < SECTIONS.len() {
+                self.current_tab = SECTIONS[selected];
+            }
+            if self.settings.common.sidebar_collapsed != before.1 {
+                self.save_settings();
+            }
+            let title = self.state.lang.get(section_key(self.current_tab)).to_string();
+            let a = ui::toolbar(ctx, &title, |_| {});
+            if a != ChromeAction::None {
+                action = a;
+            }
+            ui::content(ctx, false, |ui| {
+                self.background_progress(ui);
+                match self.current_tab {
+                    Tab::Vault => crate::ui::vault_panel::show(ui, &mut self.state),
+                    Tab::Certificates => crate::ui::cert_panel::show(ui, &mut self.state),
+                    Tab::Profiles => crate::ui::profile_panel::show(ui, &mut self.state),
+                    Tab::Sign => crate::ui::sign_panel::show(ui, &mut self.state),
+                    Tab::Verify => crate::ui::verify_panel::show(ui, &mut self.state),
+                    Tab::Audit => crate::ui::audit_panel::show(ui, &mut self.state),
+                    Tab::Settings => crate::ui::settings_panel::show(ui, &mut self.state),
+                }
             });
+        }
+        match action {
+            ChromeAction::Settings => {
+                self.current_tab = Tab::Settings;
+                self.state.quick_sign_mode = false;
+            }
+            ChromeAction::Language => self.show_language = true,
+            ChromeAction::About => self.show_about = true,
+            ChromeAction::Update => self.show_update = true,
+            ChromeAction::None => {}
+        }
 
-        // Barre de statut avec fond explicitement sombre
-        if let Some((msg, color)) = &self.state.status_msg.clone() {
-            let status_frame = egui::Frame::none()
-                .fill(theme::BG_STATUS)
-                .inner_margin(egui::Margin::symmetric(6.0, 2.0));
-
-            egui::TopBottomPanel::bottom("status_bar")
-                .frame(status_frame)
-                .show(ctx, |ui| {
-                    ui.label(RichText::new(msg).color(*color).small());
-                });
-
-            self.state.status_timer += ctx.input(|i| i.unstable_dt);
-            if self.state.status_timer > 5.0 {
-                self.state.status_msg = None;
-                self.state.status_timer = 0.0;
+        // Fenêtres communes.
+        let tr = |k: &str| core.t(k);
+        let langs: Vec<(String, String)> = rusty_core::lang::STEMS.iter().map(|s| (s.to_string(), rusty_core::lang::language_name(crate::i18n::PACKS, s))).collect();
+        let folder = self.state.workdir.join("lang").display().to_string();
+        if let Some(stem) = ui::language_window(ctx, &mut self.show_language, &tr, &core.stem, &langs, &folder) {
+            self.set_language(ctx, stem);
+        }
+        ui::about_window(ctx, &mut self.show_about, &tr, &info, LICENSE, REPOSITORY, "rusty-suite");
+        if let Some(v) = update_version {
+            let installing = self.install_rx.is_some();
+            if ui::update_window(ctx, &mut self.show_update, &tr, &v, installing) == ui::UpdateChoice::Install && !installing {
+                self.start_install();
             }
         }
 
-        // Panneau central avec fond explicitement sombre
-        let main_frame = egui::Frame::none()
-            .fill(theme::BG_PANEL)
-            .inner_margin(egui::Margin::same(8.0));
-
-        egui::CentralPanel::default().frame(main_frame).show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                match self.current_tab {
-                    Tab::Vault        => crate::ui::vault_panel::show(ui, &mut self.state),
-                    Tab::Certificates => crate::ui::cert_panel::show(ui, &mut self.state),
-                    Tab::Profiles     => crate::ui::profile_panel::show(ui, &mut self.state),
-                    Tab::Sign         => crate::ui::sign_panel::show(ui, &mut self.state),
-                    Tab::Verify       => crate::ui::verify_panel::show(ui, &mut self.state),
-                    Tab::Audit        => crate::ui::audit_panel::show(ui, &mut self.state),
-                    Tab::Settings     => crate::ui::settings_panel::show(ui, &mut self.state),
-                }
-            });
-        });
-
+        self.flush_status();
+        self.toasts.show(ctx);
+        self.zones.end_frame(ctx);
+        // Verrouillage automatique du coffre et notifications : rafraîchir chaque seconde.
         ctx.request_repaint_after(std::time::Duration::from_secs(1));
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        update::mark_healthy(&self.state.workdir);
     }
 }

@@ -9,53 +9,6 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
     ui.separator();
     ui.add_space(8.0);
 
-    // ── Language ────────────────────────────────────────────────────────────
-    ui.group(|ui| {
-        ui.label(RichText::new(lang.get("settings.language")).strong());
-        ui.add_space(4.0);
-
-        let lang_dir = state.lang_dir.clone();
-        let lang_files: Vec<_> = std::fs::read_dir(&lang_dir)
-            .into_iter()
-            .flatten()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map(|x| x == "toml").unwrap_or(false))
-            .map(|e| e.path())
-            .collect();
-
-        ui.label(RichText::new(lang.get("settings.lang_available")).weak().small());
-        ui.add_space(4.0);
-
-        for lang_path in &lang_files {
-            let label = crate::i18n::Lang::load_from_file(lang_path)
-                .ok()
-                .and_then(|l| {
-                    let name = l.get("app.lang_name");
-                    if name == "app.lang_name" { None } else { Some(name.to_string()) }
-                })
-                .unwrap_or_else(|| {
-                    lang_path.file_stem().unwrap_or_default().to_string_lossy().to_string()
-                });
-            if ui.button(&label).clicked() {
-                if let Ok(new_lang) = crate::i18n::Lang::load_from_file(lang_path) {
-                    state.lang = new_lang;
-                    crate::i18n::save_choice(&state.lang_dir, lang_path);
-                    state.status_msg = Some((
-                        // confirmation in the newly selected language
-                        state.lang.get("settings.lang_applied").to_string(),
-                        theme::GREEN,
-                    ));
-                }
-            }
-        }
-
-        if lang_files.is_empty() {
-            ui.label(RichText::new(lang.get("settings.no_lang_files")).weak().italics());
-        }
-    });
-
-    ui.add_space(8.0);
-
     // ── Sign output ─────────────────────────────────────────────────────────
     ui.group(|ui| {
         ui.label(RichText::new(lang.get("settings.sign_output")).strong());

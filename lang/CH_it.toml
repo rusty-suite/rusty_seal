@@ -2,6 +2,7 @@
 
 [app]
 lang_name = "Italiano (CH)"
+description = "Firma di file e cassette di certificati"
 
 [tab]
 vault    = "Cassaforte"
@@ -207,10 +208,6 @@ with_errors = "{msg} — {n} errore/i"
 
 [settings]
 title                       = "Impostazioni"
-language                    = "Lingua interfaccia"
-lang_available              = "Lingue disponibili"
-lang_apply                  = "Applica lingua"
-lang_applied                = "Lingua applicata"
 sign_output                 = "Output firme"
 sign_output_mode            = "Posizione output"
 sign_overwrite              = "Se .sig già esiste"
@@ -221,7 +218,6 @@ context_menu_not_registered = "Non registrato"
 context_menu_register       = "Registra 'Firma con Rusty Seal'"
 context_menu_unregister     = "Deregistra"
 context_menu_note           = "Aggiunge una voce al menu clic destro in Esplora file di Windows."
-no_lang_files = "Nessun file di lingua trovato nella cartella lang"
 context_menu_label = "Firma con Rusty Seal"
 
 [verify]

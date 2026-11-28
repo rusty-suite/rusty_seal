@@ -341,10 +341,10 @@ fn show_sign_config(ui: &mut Ui, state: &mut AppState) {
     // Persistent inline error display
     if !state.quick_sign_errors.is_empty() {
         ui.add_space(6.0);
-        egui::Frame::none()
-            .fill(egui::Color32::from_rgb(60, 20, 20))
-            .inner_margin(egui::Margin::same(6.0))
-            .rounding(4.0)
+        egui::Frame::new()
+            .fill(rusty_ui::tokens::DANGER_BG)
+            .inner_margin(egui::Margin::same(6))
+            .corner_radius(rusty_ui::theme::radius(rusty_ui::tokens::RADIUS_LG))
             .show(ui, |ui| {
                 for err in &state.quick_sign_errors.clone() {
                     ui.label(RichText::new(format!("✗ {}", err)).small().color(theme::RED));
