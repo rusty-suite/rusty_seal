@@ -4,7 +4,7 @@
   <img src="assets/img/rusty-seal.png" width="120" alt="Rusty Seal logo"/>
 </p>
 
-> Signature de binaires, gestion de certificats et métadonnées — membre de la **Rusty Suite**.
+> Signature de binaires, gestion de certificats et métadonnées : membre de la **Rusty Suite**.
 
 ---
 
@@ -23,10 +23,10 @@
 | Action | Détails |
 |--------|---------|
 | Création auto-signée | Ed25519, ECDSA P-256, ECDSA P-384, RSA 2048, RSA 4096 |
-| Import | PEM (`.pem`, `.crt`) — clé privée incluse si présente dans le fichier |
+| Import | PEM (`.pem`, `.crt`) : clé privée incluse si présente dans le fichier |
 | Import | DER (`.cer`, `.der`) |
 | Export | PEM ou DER du certificat public |
-| Alias | Chaque certificat est référencé par un alias — remplacer un certificat ne modifie aucun profil |
+| Alias | Chaque certificat est référencé par un alias : remplacer un certificat ne modifie aucun profil |
 | Expiration | Avertissements configurables (30, 7, 1 jours) + historique de remplacement par alias |
 
 ### 📁 Profils de signature
@@ -65,7 +65,7 @@
 ```
 
 ### Export coffre (`.rsvx`)
-Même structure avec magic `RSVX` — le payload est le fichier `.rsvc` brut re-chiffré avec le mot de passe d'export.
+Même structure avec magic `RSVX` : le payload est le fichier `.rsvc` brut re-chiffré avec le mot de passe d'export.
 
 ### Signature (`.sig`)
 ```json
@@ -94,10 +94,14 @@ Même structure avec magic `RSVX` — le payload est le fichier `.rsvc` brut re-
 
 ## Répertoire de travail
 
-| Situation | Répertoire utilisé |
-|-----------|-------------------|
-| Installé via `suite_install` | `%APPDATA%\rusty-suite\rusty-seal\` |
-| Mode autonome | `%USERPROFILE%\rusty-seal\` |
+Le programme est **portable** : ses données (coffres, journal d'audit, langues,
+réglages) vivent dans le dossier `rusty_seal-data`, à côté de l'exécutable. Si ce
+dossier n'est pas inscriptible, le dossier de configuration de l'utilisateur est
+utilisé (`%APPDATA%\rusty-suite\rusty_seal` sous Windows).
+
+Les versions 0.2 et antérieures rangeaient leurs données dans
+`%APPDATA%\rusty-suite\rusty-seal` ou `~/rusty-seal` : ce dossier reste utilisé
+s'il contient déjà des coffres, sans perte de données.
 
 ---
 
