@@ -22,13 +22,15 @@ et le projet respecte le [Versionnage sémantique](https://semver.org/lang/fr/) 
 
 ### Modifié
 - Programme portable : données dans `rusty_seal-data` à côté de l'exécutable. Un ancien
-  dossier (`%APPDATA%
-usty-suite
-usty-seal` ou `~/rusty-seal`) contenant des coffres
+  dossier (`%APPDATA%/rusty-suite/rusty-seal` ou `~/rusty-seal`) contenant des coffres
   reste utilisé, sans perte de données.
 - Langue choisie depuis la fenêtre Langue commune (l'ancien choix est repris) ; packs mis
   à jour depuis GitHub seulement s'ils sont aussi récents que le programme.
-- Textes : tirets cadratins remplacés et emoji décoratifs retirés des titres (charte).
+- Textes et boutons : tirets cadratins remplacés, emoji décoratifs retirés ; les boutons à
+  icône utilisent la police d'icônes de la charte.
+- Un dossier `rusty_seal-data` déjà présent à côté de l'exécutable l'emporte sur l'ancien
+  dossier.
+- Fenêtre centrée de 560 pt de haut (écran 1080p à 150 %).
 
 ## [0.2.0] - 2026-11-28
 
