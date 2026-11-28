@@ -100,10 +100,11 @@ fn main() -> eframe::Result<()> {
     let native_opts = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_title("Rusty Seal")
-            .with_inner_size([1000.0, 600.0])
+            .with_inner_size([1000.0, 560.0])
             .with_min_inner_size([720.0, 480.0])
             .with_icon(load_icon()),
-        // Centrée : la fenêtre reste entière sur un écran 1080p à 150 % (charte, 02).
+        // Centrée, 560 pt de haut : la fenêtre reste au-dessus de la barre des tâches
+        // sur un écran 1080p à 150 % (le centrage ignore la barre des tâches).
         centered: true,
         ..Default::default()
     };
