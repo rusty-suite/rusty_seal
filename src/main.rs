@@ -103,6 +103,8 @@ fn main() -> eframe::Result<()> {
             .with_inner_size([1000.0, 600.0])
             .with_min_inner_size([720.0, 480.0])
             .with_icon(load_icon()),
+        // Centrée : la fenêtre reste entière sur un écran 1080p à 150 % (charte, 02).
+        centered: true,
         ..Default::default()
     };
     eframe::run_native(
